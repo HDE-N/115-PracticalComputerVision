@@ -232,7 +232,7 @@ def main() -> None:
     ap.add_argument("--force-latest", action="store_true", help="未通過門檻也更新 latest.txt")
     add_root_arg(ap)
     args = ap.parse_args()
-    cfg = load_configs(args.root)
+    cfg = load_configs(args.root, args.set)
 
     results = [run_camera(args.root, cfg, i, args.force_latest)
                for i in parse_cam_list(args.cam, cfg["cameras"])]
@@ -245,5 +245,22 @@ def main() -> None:
             print(f"cam{r['camera_id']}: 失敗（{r.get('error')}）")
 
 
+def launch_gui() -> None:
+    """不加參數執行時開啟的 UI。"""
+    from common.gui import Arg, ScriptGUI, cam_choices
+    ScriptGUI(
+        __file__, "步驟 1-1：內參標定", "讀取 data/intrinsic/cam{i}/ 的照片，以 calibrateCamera 求 K 與 dist，"
+        "結果存到 output/01_intrinsic/cam{i}/run_*/。標定板參數必須與拍照時相同。",
+        args=[
+            Arg("--cam", "相機", "combo", "all", cam_choices(with_all=True), help="all、單一 id，或 0,2 這種列表"),
+            Arg("--force-latest", "未通過門檻也更新 latest.txt", "check", False),
+        ],
+        sections=[("標定板", "board", ()), ("內參參數", "params", ("intrinsic",))],
+    ).run()
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 1:
+        launch_gui()
+    else:
+        main()

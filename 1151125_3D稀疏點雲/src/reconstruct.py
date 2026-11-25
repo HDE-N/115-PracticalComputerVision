@@ -314,7 +314,7 @@ def main() -> None:
     ap.add_argument("--features-run", help="指定配對 run（預設讀該 shot 的 latest.txt）")
     add_root_arg(ap)
     args = ap.parse_args()
-    cfg = load_configs(args.root)
+    cfg = load_configs(args.root, args.set)
 
     feat_root = args.root / "output" / "03_features"
     shots = sorted(d.name for d in feat_root.glob("shot_*") if (d / "latest.txt").exists()) \
@@ -332,5 +332,24 @@ def main() -> None:
         process_shot(args.root, cfg, s, args.features_run)
 
 
+def launch_gui() -> None:
+    """不加參數執行時開啟的 UI。"""
+    from common.gui import Arg, ScriptGUI, shot_choices
+    ScriptGUI(
+        __file__, "步驟 2-3、2-4：三角測量與點雲", "讀取配對結果做三角測量、篩選與離群點濾除，"
+        "輸出 PLY 點雲到 output/04_reconstruction/shot_xxx/run_*/。",
+        args=[
+            Arg("--shot", "shot", "combo", "",
+                shot_choices("output/03_features", need_latest=True,
+                             extra=(("", "（預設：最新一組）"), "all"))),
+            Arg("--features-run", "配對 run", "entry", "", help="空白 = 讀該 shot 的 latest.txt"),
+        ],
+        sections=[("重建參數", "params", ("reconstruction",))],
+    ).run()
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 1:
+        launch_gui()
+    else:
+        main()

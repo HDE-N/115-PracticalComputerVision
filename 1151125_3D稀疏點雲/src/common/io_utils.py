@@ -29,26 +29,76 @@ for _stream in (sys.stdout, sys.stderr):
 
 
 # ---------------------------------------------------------------- 路徑與設定
-def add_root_arg(parser) -> None:
+def add_root_arg(parser, config_overrides: bool = True) -> None:
     parser.add_argument(
         "--root", type=Path, default=PROJECT_DIR,
         help="作業資料夾（內含 config/、data/、output/），預設為本週資料夾",
     )
+    parser.add_argument(
+        "--nogui", action="store_true",
+        help="不開 UI，直接以預設值執行（不加任何參數執行時會開啟 UI）",
+    )
+    if config_overrides:
+        parser.add_argument(
+            "--set", action="append", default=[], metavar="KEY=VALUE",
+            help="只在本次執行覆寫設定檔中的值（不修改 config/*.yaml），可重複使用。"
+                 "例：--set board.dictionary=DICT_4X4_50 --set params.intrinsic.max_rms_px=0.5 "
+                 "--set cameras.cameras.0.device_index=1",
+        )
 
 
 def load_yaml(path: Path) -> dict:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, "r", encoding="utf-8-sig") as f:
         return yaml.safe_load(f) or {}
 
 
-def load_configs(root: Path) -> dict:
-    """讀取 config/ 下的三個設定檔。"""
+def apply_overrides(cfg: dict, overrides: Iterable[str] | None) -> list[str]:
+    """套用 --set KEY=VALUE（VALUE 以 yaml 語法解析），回傳套用的項目文字。"""
+    applied = []
+    for item in overrides or []:
+        if "=" not in item:
+            raise ValueError(f"--set 格式應為 KEY=VALUE：{item}")
+        key, text = item.split("=", 1)
+        parts = [p for p in key.strip().split(".") if p != ""]
+        if len(parts) < 2 or parts[0] not in cfg:
+            raise ValueError(f"--set 的 KEY 應以 board. / cameras. / params. 開頭：{key}")
+        value = yaml.safe_load(text) if text.strip() else None
+        node: Any = cfg
+        for depth, p in enumerate(parts):
+            last = depth == len(parts) - 1
+            if isinstance(node, list):
+                try:
+                    p = int(p)
+                    node[p]
+                except (ValueError, IndexError):
+                    raise ValueError(f"--set {key}：列表索引 {p} 無效") from None
+            elif isinstance(node, dict):
+                if not last and p not in node:
+                    raise ValueError(f"--set {key}：設定檔中沒有 {p}")
+            else:
+                raise ValueError(f"--set {key}：{p} 的上一層不是 mapping 或列表")
+            if last:
+                node[p] = value
+            else:
+                node = node[p]
+        applied.append(f"{key.strip()} = {value!r}")
+    return applied
+
+
+def load_configs(root: Path, overrides: Iterable[str] | None = None) -> dict:
+    """讀取 config/ 下的三個設定檔，再套用命令列 / UI 傳入的覆寫值。"""
     cfg_dir = Path(root) / "config"
-    return {
+    cfg = {
         "board": load_yaml(cfg_dir / "board.yaml"),
         "cameras": load_yaml(cfg_dir / "cameras.yaml"),
         "params": load_yaml(cfg_dir / "params.yaml"),
     }
+    applied = apply_overrides(cfg, overrides)
+    if applied:
+        print("本次執行覆寫的設定（未寫入 config/*.yaml，會記錄在 config_used.yaml）：")
+        for a in applied:
+            print(f"  {a}")
+    return cfg
 
 
 def camera_ids(cameras_cfg: dict) -> list[int]:

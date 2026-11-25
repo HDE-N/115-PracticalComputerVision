@@ -101,7 +101,7 @@ def main() -> None:
     for sp in (p1, p2):
         sp.add_argument("--save", type=Path, help="只存成 png，不開視窗")
     for sp in (p1, p2, p3):
-        add_root_arg(sp)
+        add_root_arg(sp, config_overrides=False)
     args = ap.parse_args()
     root = args.root
 
@@ -145,5 +145,27 @@ def main() -> None:
         print(f"點 {a} -> 點 {b}：{d:.2f} mm")
 
 
+def launch_gui() -> None:
+    """不加參數執行時開啟的 UI。"""
+    from common.gui import Arg, ScriptGUI, shot_choices
+    ScriptGUI(
+        __file__, "視覺化", "顯示相機位置、點雲，或在點雲上量兩點距離（Shift + 左鍵選點，需要 open3d）。",
+        args=[
+            Arg("cmd", "功能", "combo", "layout", editable=False, choices=[
+                ("layout", "layout — 相機位置"), ("cloud", "cloud — 點雲"), ("measure", "measure — 量測距離")]),
+            Arg("--shot", "shot", "combo", "",
+                shot_choices("output/04_reconstruction", need_latest=True, extra=(("", "（預設：最新一組）"),)),
+                when={"cmd": ["cloud", "measure"]}),
+            Arg("--run", "run", "entry", "", help="layout：外參 run；cloud / measure：重建 run。空白 = latest.txt"),
+            Arg("--raw", "使用篩選前的點", "check", False, when={"cmd": ["cloud", "measure"]}),
+            Arg("--save", "只存成 png", "entry", "", help="填檔名則不開視窗，例如 layout.png",
+                when={"cmd": ["layout", "cloud"]}),
+        ],
+    ).run()
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 1:
+        launch_gui()
+    else:
+        main()

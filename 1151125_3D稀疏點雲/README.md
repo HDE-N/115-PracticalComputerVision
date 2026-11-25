@@ -13,9 +13,11 @@
 | Task.md | 作業題目與實作步驟 |
 | CLAUDE.md | 專案規範：目錄結構、資料保存規則、品質門檻 |
 | requirements.txt | Python 套件 |
-| config/board.yaml | ChArUco 板參數（字典、方格數、方格/ArUco 邊長，mm） |
+| config/board.yaml | ChArUco 板參數（版本名稱、字典、方格數、方格/ArUco 邊長，mm） |
+| config/board_presets.yaml | 標定板版本清單，供 UI 切換（UI 的「另存為版本」會寫入） |
 | config/cameras.yaml | 相機裝置編號、解析度、手動 3A 設定、相機間實測距離 |
 | config/params.yaml | 各步驟參數與品質門檻 |
+| src/app.py | 主選單 UI：依步驟列出所有程式，按鈕開啟各程式的參數視窗 |
 | src/capture.py | 拍照：內參（單台）/ 外參（多台同時）/ 物品（多台同時） |
 | src/calib_intrinsic.py | 步驟 1-1：內參標定（calibrateCamera，逐張剔除誤差最大的照片） |
 | src/calib_extrinsic.py | 步驟 1-2：外參標定（solvePnP 初值 + Bundle Adjustment） |
@@ -23,10 +25,17 @@
 | src/reconstruct.py | 步驟 2-3、2-4：三角測量、篩選、離群點濾除、輸出 PLY 與截圖 |
 | src/visualize.py | 顯示相機位置、點雲，量測點雲中兩點距離 |
 | src/common/ | 共用工具（讀寫檔、run 資料夾、標定板、相機、幾何、繪圖） |
+| src/common/gui.py | 各程式共用的參數 UI（tkinter） |
+| src/common/yaml_edit.py | 保留註解的 yaml 讀寫（UI 讀取說明文字、寫回設定檔） |
 
 ## 執行方式
 ```bash
 pip install -r requirements.txt
+
+# UI：開主選單，或直接執行任一程式且不加參數（例如 python src/calib_intrinsic.py）就會開該程式的參數視窗
+python src/app.py
+
+# 以下為命令列用法（加了任何參數就不會開 UI；要用全部預設值又不開 UI 時加 --nogui）
 
 # 0. 先修改 config/board.yaml（實測尺寸）與 config/cameras.yaml（裝置編號、對焦、曝光）
 
@@ -47,6 +56,15 @@ python src/visualize.py cloud                # 顯示點雲
 python src/visualize.py measure              # 量兩點距離，驗證尺度（需要 open3d）
 ```
 - 拍照視窗：空白鍵拍照，q / ESC 結束。每按一次都會存檔（不論是否偵測到角點）。
+- **參數 UI**：上方是該程式的執行參數（模式、相機、shot、run），下方分頁是相關的設定檔內容
+  （標定板、相機、門檻值），說明文字取自 yaml 註解。
+  - 修改後按「執行」：只套用於本次執行（以 `--set` 傳給程式），不改 `config/*.yaml`，
+    但實際使用的值會記錄在該 run 的 `config_used.yaml`。
+  - 按「寫回設定檔」：存進 `config/*.yaml` 成為預設值（保留原本的註解）。
+  - 「標定板」分頁的「標定板版本」可切換 `config/board_presets.yaml` 中的版本，或把目前參數另存為新版本。
+  - 程式在子行程中執行，輸出顯示在視窗下方；OpenCV / Open3D 視窗照常開啟。
+- 命令列也可以只覆寫某些設定：`--set board.dictionary=DICT_4X4_50 --set params.intrinsic.max_rms_px=0.5`
+  （列表用索引：`--set cameras.cameras.0.device_index=1`）。
 - 每個步驟只有**通過 config/params.yaml 的門檻**時才會更新 `latest.txt`，下一步驟預設讀取 latest。
   未通過時程式會列出原因；確認要採用時可加 `--force-latest`，或手動編輯 `latest.txt`。
 - 想用某一次舊結果時，各腳本都可以指定 run（例如 `--intrinsic-runs 0:run_xxx`、`--extrinsic-run run_xxx`）。

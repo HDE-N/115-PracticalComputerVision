@@ -263,7 +263,7 @@ def main() -> None:
     ap.add_argument("--cams", default="all", help="extrinsic / object 模式：相機 id 列表，例如 0,1,2,3")
     add_root_arg(ap)
     args = ap.parse_args()
-    cfg = load_configs(args.root)
+    cfg = load_configs(args.root, args.set)
 
     if args.mode == "intrinsic":
         if args.cam is None:
@@ -273,5 +273,28 @@ def main() -> None:
         capture_multi(args.root, cfg, parse_cam_list(args.cams, cfg["cameras"]), args.mode)
 
 
+def launch_gui() -> None:
+    """不加參數執行時開啟的 UI。"""
+    from common.gui import Arg, ScriptGUI, cam_choices
+    ScriptGUI(
+        __file__, "拍照", "空白鍵拍照，q / ESC 結束（在 OpenCV 預覽視窗中按）。每按一次都會存檔，照片只增不刪。"
+        "標定板參數錯誤時預覽畫面會顯示 corners 0。",
+        args=[
+            Arg("mode", "模式", "combo", "intrinsic", editable=False, choices=[
+                ("intrinsic", "intrinsic — 內參（單台，每台 20–30 張）"),
+                ("extrinsic", "extrinsic — 外參（多台同時，10–20 組）"),
+                ("object", "object — 物品（多台同時）")]),
+            Arg("--cam", "相機 id", "combo", "0", cam_choices(), editable=False,
+                help="內參模式：要拍的相機", when={"mode": ["intrinsic"]}),
+            Arg("--cams", "相機列表", "entry", "all",
+                help="外參 / 物品模式：例如 0,1,2,3 或 all", when={"mode": ["extrinsic", "object"]}),
+        ],
+        sections=[("標定板", "board", ()), ("相機", "cameras", ()), ("拍照參數", "params", ("capture",))],
+    ).run()
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 1:
+        launch_gui()
+    else:
+        main()

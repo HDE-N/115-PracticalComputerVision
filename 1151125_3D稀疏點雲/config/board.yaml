@@ -2,6 +2,7 @@
 # !! 以下為預設值，請依實際標定板修改，長度請用尺「實際量測」印出後的尺寸（單位 mm）!!
 # 參數錯誤時，預覽畫面會偵測不到角點（corners 0），或標定誤差異常大。
 
+name: default_7x5          # 標定板版本名稱（只用於記錄，會存進 config_used.yaml；UI 可從 board_presets.yaml 切換）
 dictionary: DICT_5X5_100   # ArUco 字典，常見：DICT_4X4_50、DICT_5X5_100、DICT_6X6_250
 squares_x: 7               # 橫向方格數（不是內角點數）
 squares_y: 5               # 縱向方格數

@@ -67,7 +67,7 @@ def main() -> None:
     add_root_arg(ap)
     args = ap.parse_args()
     root = args.root
-    cfg = load_configs(root)
+    cfg = load_configs(root, args.set)
     p = cfg["params"]["extrinsic"]
     cams_all = camera_ids(cfg["cameras"])
     ref = cams_all[0]
@@ -349,5 +349,24 @@ def cams_out_with_centers(cams_out: dict, centers: dict) -> dict:
     return {i: {**c, "center": centers[i]} for i, c in cams_out.items()}
 
 
+def launch_gui() -> None:
+    """不加參數執行時開啟的 UI。"""
+    from common.gui import Arg, ScriptGUI
+    ScriptGUI(
+        __file__, "步驟 1-2：外參標定 + Bundle Adjustment", "讀取 data/extrinsic/frame_*/，以 solvePnP 求初值再做 BA，"
+        "結果存到 output/02_extrinsic/run_*/。世界座標 = cam0 相機座標。",
+        args=[
+            Arg("--intrinsic-runs", "指定內參 run", "entry", "",
+                help="例如 0:run_xxx,1:run_yyy；空白 = 各相機讀 latest.txt"),
+            Arg("--force-latest", "未通過門檻也更新 latest.txt", "check", False),
+        ],
+        sections=[("標定板", "board", ()), ("外參參數", "params", ("extrinsic",)),
+                  ("相機實測距離", "cameras", ("measured_baselines_mm",))],
+    ).run()
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 1:
+        launch_gui()
+    else:
+        main()

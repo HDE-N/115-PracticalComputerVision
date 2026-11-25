@@ -237,11 +237,30 @@ def main() -> None:
     ap.add_argument("--force-latest", action="store_true")
     add_root_arg(ap)
     args = ap.parse_args()
-    cfg = load_configs(args.root)
+    cfg = load_configs(args.root, args.set)
     ext_dir = resolve_run(args.root / "output" / "02_extrinsic", args.extrinsic_run)
     for shot_dir in list_shots(args.root, args.shot):
         process_shot(args.root, cfg, shot_dir, ext_dir, args.force_latest)
 
 
+def launch_gui() -> None:
+    """不加參數執行時開啟的 UI。"""
+    from common.gui import Arg, ScriptGUI, run_choices, shot_choices
+    ScriptGUI(
+        __file__, "步驟 2-2：SIFT 特徵配對", "對 data/object/shot_*/ 的照片擷取 SIFT、ratio test，"
+        "再用外參算出的 F 做對極約束篩選，結果存到 output/03_features/shot_xxx/run_*/。",
+        args=[
+            Arg("--shot", "shot", "combo", "",
+                shot_choices("data/object", extra=(("", "（預設：最新一組）"), "all"))),
+            Arg("--extrinsic-run", "外參 run", "combo", "", run_choices("output/02_extrinsic")),
+            Arg("--force-latest", "未通過門檻也更新 latest.txt", "check", False),
+        ],
+        sections=[("特徵配對參數", "params", ("features",))],
+    ).run()
+
+
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 1:
+        launch_gui()
+    else:
+        main()

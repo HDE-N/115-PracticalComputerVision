@@ -85,6 +85,9 @@
   `numpy`、`scipy`、`open3d`。
 - 每個腳本都可以單獨執行，用 `argparse` 接參數，預設值從 `config/*.yaml` 讀取，
   **不要把門檻值或板子尺寸寫死在程式碼裡**。
+- **每個程式都要有簡易 UI**：不加參數執行時開啟參數視窗（`src/common/gui.py` 的 `ScriptGUI`），
+  能在 UI 上輸入執行參數與相關設定（例如標定板版本、門檻值），並加進 `src/app.py` 主選單。
+  UI 修改的設定以 `--set` 傳給程式，必須記錄在 `config_used.yaml`。
 - 路徑一律用 `pathlib` 和相對於本資料夾的路徑，不可寫死 `C:\Users\...` 這類絕對路徑。
 - 拍照時：
   - 依 Day03 p33–34 關閉自動對焦、自動曝光、自動白平衡（`cv2.CAP_DSHOW`），
