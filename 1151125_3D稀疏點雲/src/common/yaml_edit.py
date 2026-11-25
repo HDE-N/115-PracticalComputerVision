@@ -74,7 +74,7 @@ def index_yaml(text: str) -> dict[tuple, dict]:
         path = parent + (key,)
         vs, ve, comment = _split_value_comment(m["rest"])
         base = m.start("rest")
-        out[path] = {"line": n, "vstart": base + vs, "vend": base + ve,
+        out[path] = {"line": n, "vstart": base + vs, "vend": base + ve, "kcol": m.start("key"),
                      "comment": comment, "leaf": ve > vs}
         stack.append((indent, path))
     return out
@@ -124,9 +124,23 @@ def get_path(data: Any, path: tuple) -> Any:
     return data
 
 
-def update_yaml_file(path: Path, updates: dict[tuple, Any]) -> list[tuple]:
+def _insert_key(lines: list[str], key_path: tuple, value: Any) -> bool:
+    """在已存在的 mapping（含列表中的 mapping）最後加一行 key: value；成功回傳 True。"""
+    idx = index_yaml("\n".join(lines))
+    parent, key = tuple(key_path[:-1]), key_path[-1]
+    siblings = [e for p, e in idx.items() if len(p) == len(key_path) and p[:-1] == parent]
+    if not siblings or (parent and parent in idx and idx[parent]["leaf"]):
+        return False
+    last = max(e["line"] for p, e in idx.items() if len(p) > len(parent) and p[:len(parent)] == parent)
+    lines.insert(last + 1, " " * siblings[0]["kcol"] + f"{yaml_scalar(str(key))}: {yaml_scalar(value)}")
+    return True
+
+
+def update_yaml_file(path: Path, updates: dict[tuple, Any], insert_missing: bool = False) -> list[tuple]:
     """把 {路徑: 新值} 寫回 yaml 檔，保留註解與排版。
 
+    insert_missing=True 時，檔案中沒有的 key 會加在所屬 mapping 的最後一行之後
+    （上一層必須已存在且至少有一個 key，例如 cameras 列表中的某台相機）。
     回傳找不到、無法寫回的路徑列表（這些路徑不會被修改）。
     寫入後會重新讀取檢查，結果不符時還原原始檔案並丟出例外。
     """
@@ -154,6 +168,8 @@ def update_yaml_file(path: Path, updates: dict[tuple, Any]) -> list[tuple]:
             lines[info["line"]] = line[:vs] + new + " " * spaces + after.lstrip()
         else:
             lines[info["line"]] = line[:vs] + new
+    if insert_missing:
+        missing = [k for k in missing if not (tuple(k) not in idx and _insert_key(lines, tuple(k), updates[k]))]
 
     text = nl.join(lines) + (nl if raw.endswith(("\n", "\r")) else "")
     data = text.encode("utf-8")

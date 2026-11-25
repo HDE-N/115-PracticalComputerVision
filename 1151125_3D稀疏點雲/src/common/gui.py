@@ -241,23 +241,14 @@ class ScriptGUI:
                 self._build_arg(af, r, a)
 
         # 設定分頁
-        if self.sections:
-            nb = ttk.Notebook(upper)
-            nb.pack(fill="both", expand=True, pady=(8, 0))
-            for tab_title, fk, path in self.sections:
-                sf = ScrollFrame(nb)
-                nb.add(sf, text=tab_title)
-                inner = sf.inner
-                inner.columnconfigure(2, weight=1)
-                row = 0
-                if fk == "board" and path == ():
-                    row = self._build_preset_bar(inner)
-                node = get_path(self.data[fk], path)
-                self._build_node(inner, fk, path, node, row)
+        self.upper = upper
+        self.nb: ttk.Notebook | None = None
+        self._build_tabs()
 
         # 按鈕列
         bar = ttk.Frame(upper)
         bar.pack(fill="x", pady=(8, 0))
+        self.bar = bar
         self.run_btn = ttk.Button(bar, text="▶ 執行", command=self._run)
         self.run_btn.pack(side="left")
         self.stop_btn = ttk.Button(bar, text="■ 停止", command=self._stop, state="disabled")
@@ -282,6 +273,43 @@ class ScriptGUI:
         self.log.tag_configure("err", foreground="#ff6b6b")
         self.log.pack(side="left", fill="both", expand=True)
         lsb.pack(side="right", fill="y")
+
+    def _build_tabs(self) -> None:
+        """建立（或重建）設定分頁；重建時保留目前選取的分頁。"""
+        if not self.sections:
+            return
+        selected = 0
+        if self.nb is not None:
+            try:
+                selected = self.nb.index(self.nb.select())
+            except tk.TclError:
+                pass
+            self.nb.destroy()
+        self.cfg_fields = []
+        self.preset_box = None
+        nb = ttk.Notebook(self.upper)
+        if hasattr(self, "bar"):
+            nb.pack(fill="both", expand=True, pady=(8, 0), before=self.bar)
+        else:
+            nb.pack(fill="both", expand=True, pady=(8, 0))
+        for tab_title, fk, path in self.sections:
+            sf = ScrollFrame(nb)
+            nb.add(sf, text=tab_title)
+            inner = sf.inner
+            inner.columnconfigure(2, weight=1)
+            row = 0
+            if fk == "board" and path == ():
+                row = self._build_preset_bar(inner)
+            try:
+                node = get_path(self.data[fk], path)
+            except (KeyError, IndexError, TypeError):
+                ttk.Label(inner, text=f"設定檔中沒有 {fk}.{'.'.join(map(str, path))}", foreground="#c00"
+                          ).grid(row=row, column=0, sticky="w")
+                continue
+            self._build_node(inner, fk, path, node, row)
+        self.nb = nb
+        if selected < len(self.sections):
+            nb.select(selected)
 
     def _build_arg(self, parent, r: int, a: Arg) -> None:
         ttk.Label(parent, text=a.label).grid(row=r, column=0, sticky="w", padx=(0, 8), pady=2)
@@ -641,12 +669,7 @@ class ScriptGUI:
         except Exception as e:
             messagebox.showerror("重新讀取", f"讀取設定檔失敗：{e}")
             return
-        for f in self.cfg_fields:
-            try:
-                f.original = get_path(self.data[f.fk], f.path)
-            except (KeyError, IndexError, TypeError):
-                continue
-            f.var.set(bool(f.original) if f.kind == "check" else _display(f.original))
+        self._build_tabs()      # 重建分頁：程式可能在設定檔中新增了欄位（例如 camera_setup.py）
         self._refresh_choices()
         self._refresh_presets()
         self._update_status()

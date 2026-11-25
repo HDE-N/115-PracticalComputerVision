@@ -41,11 +41,13 @@
 │   ├── cameras.yaml         # 相機裝置編號、解析度、對焦、曝光、白平衡
 │   └── params.yaml          # 各步驟門檻：RMS 上限、ratio test、對極距離、重投影誤差、夾角...
 ├── data/                    # 原始照片，只增不刪
+│   ├── camera_setup/               cam{i}_YYYYMMDD_HHMMSS.png (+ .json)  相機參數匯出時的畫面
 │   ├── board_detect/               img_YYYYMMDD_HHMMSS_cam{i}.png (+ .json)  標定板偵測用
 │   ├── intrinsic/cam{0..3}/        img_YYYYMMDD_HHMMSS_xxx.png (+ .json metadata)
 │   ├── extrinsic/frame_xxx/        cam0.png ~ cam3.png (+ frame.json)
 │   └── object/shot_xxx/            cam0.png ~ cam3.png (+ shot.json)
 ├── output/
+│   ├── 00_camera_setup/run_*/      # camera_settings.yaml（各相機鎖定後的對焦、曝光、增益、色溫）
 │   ├── 00_board_detect/run_*/      # result.json、markers.npz、detection.png（標定板偵測）
 │   ├── 01_intrinsic/cam{i}/run_*/
 │   │   ├── intrinsics.yaml         # K、dist、image_size、RMS
@@ -75,6 +77,7 @@
 └── src/
     ├── common/                     # 共用工具：讀寫 yaml/npz、讀 latest.txt、建立 run 資料夾、log
     ├── app.py                      # 主選單 UI
+    ├── camera_setup.py             # 步驟 0：相機參數調整（自動收斂後鎖定、匯出）
     ├── detect_board.py             # 步驟 0：標定板自動偵測
     ├── capture.py                  # 拍照（內參 / 外參 / 物品三種模式）
     ├── calib_intrinsic.py          # 步驟 1-1

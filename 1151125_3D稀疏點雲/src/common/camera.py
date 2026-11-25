@@ -22,11 +22,12 @@ PROPS = [
     ("focus", cv2.CAP_PROP_FOCUS),
     ("auto_exposure", cv2.CAP_PROP_AUTO_EXPOSURE),
     ("exposure", cv2.CAP_PROP_EXPOSURE),
+    ("gain", cv2.CAP_PROP_GAIN),
     ("auto_wb", cv2.CAP_PROP_AUTO_WB),
     ("wb_temperature", cv2.CAP_PROP_WB_TEMPERATURE),
 ]
+PROP_IDS = dict(PROPS)
 EXTRA_READBACK = [
-    ("gain", cv2.CAP_PROP_GAIN),
     ("brightness", cv2.CAP_PROP_BRIGHTNESS),
     ("contrast", cv2.CAP_PROP_CONTRAST),
     ("saturation", cv2.CAP_PROP_SATURATION),
@@ -42,6 +43,20 @@ def camera_settings(cameras_cfg: dict, cam_id: int) -> dict:
             settings.update({k: v for k, v in cam.items() if k != "id"})
             return settings
     raise ValueError(f"cameras.yaml 中沒有相機 {cam_id}")
+
+
+# 各 backend 開 / 關自動功能時要設定的值 (開, 關)。
+# DSHOW 的 auto_exposure：四捨五入為 1 = 自動，其他 = 手動（cameras.yaml 慣用 0.25）；
+# V4L2 的 auto_exposure：3 = 自動（光圈優先），1 = 手動。
+AUTO_VALUES = {
+    "DSHOW": {"autofocus": (1, 0), "auto_exposure": (1, 0.25), "auto_wb": (1, 0)},
+    "V4L2": {"autofocus": (1, 0), "auto_exposure": (3, 1), "auto_wb": (1, 0)},
+}
+AUTO_VALUES_DEFAULT = {"autofocus": (1, 0), "auto_exposure": (0.75, 0.25), "auto_wb": (1, 0)}
+
+
+def auto_values(backend_name: str) -> dict:
+    return AUTO_VALUES.get(str(backend_name).upper(), AUTO_VALUES_DEFAULT)
 
 
 def _decode_fourcc(value: float) -> str:
@@ -81,6 +96,18 @@ class Camera:
         out["fourcc"] = _decode_fourcc(self.cap.get(cv2.CAP_PROP_FOURCC))
         out["requested"] = {k: self.settings.get(k) for k, _ in PROPS}
         return out
+
+    def get(self, key: str) -> float:
+        return float(self.cap.get(PROP_IDS[key]))
+
+    def set(self, key: str, value: float) -> bool:
+        return bool(self.cap.set(PROP_IDS[key], float(value)))
+
+    def set_auto(self, on: bool, keys=("autofocus", "auto_exposure", "auto_wb")) -> None:
+        """開啟或關閉自動對焦 / 自動曝光 / 自動白平衡。"""
+        vals = auto_values(self.backend_name)
+        for k in keys:
+            self.set(k, vals[k][0 if on else 1])
 
     def read(self) -> tuple[bool, np.ndarray | None]:
         return self.cap.read()

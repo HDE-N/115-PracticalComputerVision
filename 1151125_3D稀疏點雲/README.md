@@ -18,6 +18,7 @@
 | config/cameras.yaml | 相機裝置編號、解析度、手動 3A 設定、相機間實測距離 |
 | config/params.yaml | 各步驟參數與品質門檻 |
 | src/app.py | 主選單 UI：依步驟列出所有程式，按鈕開啟各程式的參數視窗 |
+| src/camera_setup.py | 步驟 0：相機參數調整（預覽 + 滑桿；自動對焦 / 曝光 / 白平衡收斂後鎖定成手動值，匯出到 cameras.yaml） |
 | src/detect_board.py | 步驟 0：標定板自動偵測（字典大小、方格數、圖樣版本），可寫回 board.yaml |
 | src/capture.py | 拍照：內參（單台）/ 外參（多台同時）/ 物品（多台同時） |
 | src/calib_intrinsic.py | 步驟 1-1：內參標定（calibrateCamera，逐張剔除誤差最大的照片） |
@@ -39,6 +40,8 @@ python src/app.py
 # 以下為命令列用法（加了任何參數就不會開 UI；要用全部預設值又不開 UI 時加 --nogui）
 
 # 0. 先修改 config/board.yaml（實測尺寸）與 config/cameras.yaml（裝置編號、對焦、曝光）
+#    對焦 / 曝光 / 白平衡：a 開自動 -> 畫面穩定後 l 鎖定 -> 滑桿微調 -> s 匯出（寫進 cameras.yaml 該相機的個別設定）
+python src/camera_setup.py --cam all
 #    方格數 / 字典大小不確定時，用相機自動偵測並寫回 board.yaml（整塊板子入鏡，按空白鍵）
 python src/detect_board.py --cam 0 --apply
 
@@ -75,6 +78,7 @@ python src/visualize.py measure              # 量兩點距離，驗證尺度（
 ## 輸出結果（供後續作業調用）
 | 檔案 | 格式 | 內容 |
 |------|------|------|
+| output/00_camera_setup/run_*/camera_settings.yaml | yaml | 各相機鎖定後的對焦、曝光、增益、色溫（匯出值與實際讀回值） |
 | output/00_board_detect/run_*/result.json | json | 標定板偵測結果：字典、方格數、圖樣版本、候選排名 |
 | output/01_intrinsic/cam{0..3}/run_*/intrinsics.yaml | OpenCV FileStorage | 每台相機的 K、dist、影像尺寸、RMS |
 | output/02_extrinsic/run_*/extrinsics.yaml | OpenCV FileStorage | 每台相機的 K、dist、R、t、rvec、P = K[R\|t]、光心 center |
@@ -113,7 +117,9 @@ python src/visualize.py measure              # 量兩點距離，驗證尺度（
 - ChArUco 板參數：型號 CC400-30-22.5，ArUco 字典 5X5 家族，方格邊長 30 mm、ArUco 邊長 22.5 mm。
   方格數與字典大小（50/100/250/1000）待 `detect_board.py` 以實際照片偵測後填入。
   （同家族的預設字典前 N 個 marker 相同，偵測程式採用能涵蓋最大 id 的最小字典。）
-- 相機設定（解析度、對焦、曝光）：（待補）
+- 相機設定（解析度、對焦、曝光）：（待補，用 camera_setup.py 鎖定後記錄於此）
+  - camera_setup.py 鎖定時讀回的是相機回報的值；部分 UVC 相機在自動模式下回報的不是實際值，
+    鎖定後若畫面明顯變模糊 / 變暗，請用滑桿微調再匯出。對焦改變後內參要重做。
 - 各步驟誤差：（待補，實際拍攝後填入內參 RMS、BA 前後 RMS、基線計算值 vs 實測值、點數）
 - 程式已用合成資料（已知內外參、渲染的 ChArUco 照片與紋理立方體）跑過完整流程驗證：
   內參 RMS 約 0.11–0.14 px；外參旋轉誤差 < 0.13°、平移誤差 < 1.5 mm（相機距物品約 650 mm）；

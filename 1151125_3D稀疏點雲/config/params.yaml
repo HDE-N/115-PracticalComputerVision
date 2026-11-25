@@ -6,6 +6,15 @@ capture:
   detect_interval: 3        # 每幾個畫面做一次角點偵測（降低預覽延遲）
   sync_warn_ms: 50          # 多相機擷取時間差超過此值時警告
 
+camera_setup:               # 相機參數調整（camera_setup.py），滑桿範圍請依相機規格調整
+  focus_range: [0, 255]     # 對焦
+  exposure_range: [-13, 0]  # 曝光（DSHOW：2^值 秒）
+  gain_range: [0, 255]      # 增益
+  wb_range: [2000, 7500]    # 色溫（K）
+  roi_ratio: 0.3            # 清晰度只計算畫面中央此比例的區域（對焦時把物品 / 標定板放在中央）
+  readback_interval: 10     # 每幾個畫面讀回一次相機實際設定
+  settle_frames: 15         # 鎖定後丟掉幾個畫面再讀回確認
+
 intrinsic:                  # 步驟 1-1
   min_corners: 6            # 單張照片最少角點數
   min_images: 10            # 最少有效照片數

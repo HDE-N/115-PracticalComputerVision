@@ -17,6 +17,7 @@ sys.path.insert(0, str(SRC))
 from common.gui import _enable_dpi_awareness, _setup_style  # noqa: E402
 
 STEPS = [
+    ("0", "相機參數調整", "camera_setup.py", "自動對焦 / 曝光 / 白平衡後鎖定，匯出到 cameras.yaml"),
     ("0", "標定板偵測", "detect_board.py", "自動判斷 ChArUco 字典與方格數，寫回 board.yaml"),
     ("0 / 2-1", "拍照", "capture.py", "內參（單台）、外參（多台同時）、物品照片"),
     ("1-1", "內參標定", "calib_intrinsic.py", "calibrateCamera，求每台相機的 K、dist"),

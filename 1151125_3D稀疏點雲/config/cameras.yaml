@@ -14,6 +14,7 @@ defaults:
   focus: 30             # 對焦值：0 = 無限遠，20–40 約對應 50–80 cm，255 = 最近
   auto_exposure: 0.25   # DSHOW 下 0.25 = 手動曝光
   exposure: -6          # 曝光值 = 2^exposure 秒；數值越小畫面越暗
+  gain: null            # 增益；null = 不設定（camera_setup.py 鎖定時會寫入實際值）
   auto_wb: 0            # 0 = 關閉自動白平衡
   wb_temperature: 4500  # 色溫（K）
 
