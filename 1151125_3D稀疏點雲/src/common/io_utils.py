@@ -101,6 +101,27 @@ def load_configs(root: Path, overrides: Iterable[str] | None = None) -> dict:
     return cfg
 
 
+PRESET_FILE = "board_presets.yaml"
+PRESET_HEADER = (
+    "# 標定板版本：UI「標定板」分頁中「標定板版本」下拉選單的選項。\n"
+    "# 由 UI 的「另存為版本」或 detect_board.py 自動寫入，也可以手動編輯；格式與 board.yaml 相同，長度單位 mm。\n"
+    "# 套用版本後要按「寫回設定檔」才會成為 board.yaml 的預設值，否則只用於本次執行。\n"
+)
+
+
+def load_board_presets(root: Path) -> dict:
+    p = Path(root) / "config" / PRESET_FILE
+    return (load_yaml(p).get("presets") or {}) if p.exists() else {}
+
+
+def save_board_preset(root: Path, name: str, values: dict) -> None:
+    """新增或覆寫 config/board_presets.yaml 中的一個標定板版本。"""
+    presets = load_board_presets(root)
+    presets[name] = dict(to_builtin(values), name=name)
+    text = PRESET_HEADER + yaml.safe_dump({"presets": presets}, allow_unicode=True, sort_keys=False)
+    (Path(root) / "config" / PRESET_FILE).write_text(text, encoding="utf-8")
+
+
 def camera_ids(cameras_cfg: dict) -> list[int]:
     return [int(c["id"]) for c in cameras_cfg["cameras"]]
 

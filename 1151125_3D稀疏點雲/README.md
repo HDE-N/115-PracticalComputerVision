@@ -18,6 +18,7 @@
 | config/cameras.yaml | 相機裝置編號、解析度、手動 3A 設定、相機間實測距離 |
 | config/params.yaml | 各步驟參數與品質門檻 |
 | src/app.py | 主選單 UI：依步驟列出所有程式，按鈕開啟各程式的參數視窗 |
+| src/detect_board.py | 步驟 0：標定板自動偵測（字典大小、方格數、圖樣版本），可寫回 board.yaml |
 | src/capture.py | 拍照：內參（單台）/ 外參（多台同時）/ 物品（多台同時） |
 | src/calib_intrinsic.py | 步驟 1-1：內參標定（calibrateCamera，逐張剔除誤差最大的照片） |
 | src/calib_extrinsic.py | 步驟 1-2：外參標定（solvePnP 初值 + Bundle Adjustment） |
@@ -38,6 +39,8 @@ python src/app.py
 # 以下為命令列用法（加了任何參數就不會開 UI；要用全部預設值又不開 UI 時加 --nogui）
 
 # 0. 先修改 config/board.yaml（實測尺寸）與 config/cameras.yaml（裝置編號、對焦、曝光）
+#    方格數 / 字典大小不確定時，用相機自動偵測並寫回 board.yaml（整塊板子入鏡，按空白鍵）
+python src/detect_board.py --cam 0 --apply
 
 # 1-1 內參：每台相機各拍 20–30 張，再標定
 python src/capture.py intrinsic --cam 0      # 依序對 cam0 ~ cam3 執行
@@ -72,6 +75,7 @@ python src/visualize.py measure              # 量兩點距離，驗證尺度（
 ## 輸出結果（供後續作業調用）
 | 檔案 | 格式 | 內容 |
 |------|------|------|
+| output/00_board_detect/run_*/result.json | json | 標定板偵測結果：字典、方格數、圖樣版本、候選排名 |
 | output/01_intrinsic/cam{0..3}/run_*/intrinsics.yaml | OpenCV FileStorage | 每台相機的 K、dist、影像尺寸、RMS |
 | output/02_extrinsic/run_*/extrinsics.yaml | OpenCV FileStorage | 每台相機的 K、dist、R、t、rvec、P = K[R\|t]、光心 center |
 | output/03_features/shot_xxx/run_*/keypoints_cam{i}.npz、matches_{i}{j}.npz | npz | SIFT 特徵與各階段配對 |
@@ -106,7 +110,9 @@ python src/visualize.py measure              # 量兩點距離，驗證尺度（
 | 統計式離群點濾除 | reconstruct.py | 與 open3d `remove_statistical_outlier` 相同的演算法，自行以 scipy 實作，未安裝 open3d 也能執行 |
 
 ## 備註
-- ChArUco 板參數：（待補，實際量測後填入 config/board.yaml 並記錄於此）
+- ChArUco 板參數：型號 CC400-30-22.5，ArUco 字典 5X5 家族，方格邊長 30 mm、ArUco 邊長 22.5 mm。
+  方格數與字典大小（50/100/250/1000）待 `detect_board.py` 以實際照片偵測後填入。
+  （同家族的預設字典前 N 個 marker 相同，偵測程式採用能涵蓋最大 id 的最小字典。）
 - 相機設定（解析度、對焦、曝光）：（待補）
 - 各步驟誤差：（待補，實際拍攝後填入內參 RMS、BA 前後 RMS、基線計算值 vs 實測值、點數）
 - 程式已用合成資料（已知內外參、渲染的 ChArUco 照片與紋理立方體）跑過完整流程驗證：

@@ -26,16 +26,11 @@ from tkinter import messagebox, simpledialog, ttk
 
 import yaml
 
-from .io_utils import PROJECT_DIR, camera_ids, load_yaml
+from .io_utils import (PRESET_FILE, PROJECT_DIR, camera_ids, load_board_presets, load_yaml,
+                       save_board_preset)
 from .yaml_edit import comments_of, get_path, update_yaml_file, yaml_scalar
 
 CONFIG_FILES = {"board": "board.yaml", "cameras": "cameras.yaml", "params": "params.yaml"}
-PRESET_FILE = "board_presets.yaml"
-PRESET_HEADER = (
-    "# 標定板版本：UI「標定板」分頁中「標定板版本」下拉選單的選項。\n"
-    "# 由 UI 的「另存為版本」自動寫入，也可以手動編輯；格式與 board.yaml 相同，長度單位 mm。\n"
-    "# 套用版本後要按「寫回設定檔」才會成為 board.yaml 的預設值，否則只用於本次執行。\n"
-)
 
 
 def aruco_dictionaries() -> list[str]:
@@ -93,12 +88,13 @@ class Arg:
     """一個命令列參數在 UI 上的欄位。"""
     name: str                       # "--cam"；不以 - 開頭表示位置參數（例如 "mode"）
     label: str
-    kind: str = "entry"             # entry / combo / check
+    kind: str = "entry"             # entry / combo / check / file（檔案路徑 + 瀏覽按鈕）
     default: Any = ""
     choices: list | Callable[[Path, dict], list] | None = None   # 字串，或 (值, 顯示文字)
     help: str = ""
     when: dict[str, list] | None = None     # 只在其他參數為指定值時有效，例：{"mode": ["intrinsic"]}
     editable: bool = True           # combo 是否可自行輸入
+    ui_only: bool = False           # 只用來切換其他欄位（when），不傳給程式
 
     @property
     def positional(self) -> bool:
@@ -120,6 +116,7 @@ class _ArgWidget:
     var: tk.Variable
     widget: Any = None
     display_to_value: dict = field(default_factory=dict)
+    browse: Any = None
 
 
 def _display(v: Any) -> str:
@@ -217,10 +214,7 @@ class ScriptGUI:
         self.comments = {k: comments_of(cfg_dir / f) for k, f in CONFIG_FILES.items()}
 
     def _presets(self) -> dict:
-        p = self.root / "config" / PRESET_FILE
-        if not p.exists():
-            return {}
-        return (load_yaml(p).get("presets") or {})
+        return load_board_presets(self.root)
 
     # ------------------------------------------------------------ 版面
     def _build(self, title: str, description: str) -> None:
@@ -298,9 +292,17 @@ class ScriptGUI:
         elif a.kind == "combo":
             aw.widget = ttk.Combobox(parent, textvariable=aw.var, width=36,
                                      state="normal" if a.editable else "readonly")
+        elif a.kind == "file":
+            box = ttk.Frame(parent)
+            aw.widget = ttk.Entry(box, textvariable=aw.var, width=38)
+            aw.widget.pack(side="left")
+            aw.browse = ttk.Button(box, text="瀏覽…", width=6, command=lambda: self._browse(aw))
+            aw.browse.pack(side="left", padx=(4, 0))
+            box.grid(row=r, column=1, sticky="w", pady=2)
         else:
             aw.widget = ttk.Entry(parent, textvariable=aw.var, width=38)
-        aw.widget.grid(row=r, column=1, sticky="w", pady=2)
+        if a.kind != "file":
+            aw.widget.grid(row=r, column=1, sticky="w", pady=2)
         if a.help:
             ttk.Label(parent, text=a.help, foreground="#666", wraplength=520, justify="left"
                       ).grid(row=r, column=2, sticky="w", padx=(10, 0))
@@ -422,11 +424,21 @@ class ScriptGUI:
         return all(name in self.arg_widgets and self._arg_value(name) in vals
                    for name, vals in a.when.items())
 
+    def _browse(self, aw: "_ArgWidget") -> None:
+        from tkinter import filedialog
+        path = filedialog.askopenfilename(
+            parent=self.win, initialdir=str(self.root / "data"),
+            filetypes=[("影像", "*.png *.jpg *.jpeg *.bmp *.tif *.tiff"), ("所有檔案", "*.*")])
+        if path:
+            aw.var.set(path)
+
     def _refresh_when(self) -> None:
         for aw in self.arg_widgets.values():
             if aw.widget is None:
                 continue
             on = self._active(aw.arg)
+            if aw.browse is not None:
+                aw.browse.configure(state="normal" if on else "disabled")
             if aw.arg.kind == "combo":
                 aw.widget.configure(state=("normal" if aw.arg.editable else "readonly") if on else "disabled")
             else:
@@ -500,15 +512,9 @@ class ScriptGUI:
         if not name:
             return
         name = name.strip()
-        presets = self._presets()
-        if name in presets and not messagebox.askyesno("另存為標定板版本", f"版本「{name}」已存在，要覆寫嗎？"):
+        if name in self._presets() and                 not messagebox.askyesno("另存為標定板版本", f"版本「{name}」已存在，要覆寫嗎？"):
             return
-        values = {k: self._field_value(f) for k, f in fields.items()}
-        values["name"] = name
-        presets[name] = values
-        p = self.root / "config" / PRESET_FILE
-        text = PRESET_HEADER + yaml.safe_dump({"presets": presets}, allow_unicode=True, sort_keys=False)
-        p.write_text(text, encoding="utf-8")
+        save_board_preset(self.root, name, {k: self._field_value(f) for k, f in fields.items()})
         if "name" in fields:
             fields["name"].var.set(name)
         self._refresh_presets()
@@ -520,7 +526,7 @@ class ScriptGUI:
         cmd = [sys.executable, "-u", str(self.script)]
         opts: list[str] = []
         for a in self.args_spec:
-            if not self._active(a):
+            if a.ui_only or not self._active(a):
                 continue
             v = self._arg_value(a.name)
             if a.positional:
@@ -586,7 +592,10 @@ class ScriptGUI:
                     self.proc = None
                     self.run_btn.configure(state="normal")
                     self.stop_btn.configure(state="disabled")
-                    self._refresh_choices()
+                    if self.sections and not self._changed():
+                        self._reload()          # 程式可能改了設定檔（例如 detect_board.py）
+                    else:
+                        self._refresh_choices()
         except queue.Empty:
             pass
         self._after_id = self.win.after(100, self._poll)

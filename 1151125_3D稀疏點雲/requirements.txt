@@ -1,7 +1,10 @@
-opencv-contrib-python>=4.8
+# OpenCV：需要 contrib 版的 cv2.aruco 新 API（CharucoDetector，>= 4.8），且不可使用 5.x。
+# 4.10.0.84 起才支援 numpy 2；不要同時安裝 opencv-python（兩者都提供 cv2，會互相覆蓋）。
+opencv-contrib-python>=4.10.0.84,<5
 numpy
 scipy
 pyyaml
 matplotlib
+# UI 使用 Python 內建的 tkinter，不需另外安裝
 # 選用：互動式 3D 檢視與量測距離（visualize.py measure）
 open3d
