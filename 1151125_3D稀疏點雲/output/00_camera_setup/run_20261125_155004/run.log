@@ -1,0 +1,10 @@
+2026-11-25 15:50:04,276 [INFO] ===== 相機參數調整，輸出：output/00_camera_setup/run_20261125_155004 =====
+2026-11-25 15:50:07,737 [INFO] cam0 開啟時的設定：{'focus': -1.0, 'exposure': -6.0, 'gain': 0.0, 'wb_temperature': 4500.0, 'autofocus': -1.0, 'auto_exposure': -1.0, 'auto_wb': 0.0}
+2026-11-25 15:50:14,934 [INFO] cam0：已開啟自動對焦 / 自動曝光 / 自動白平衡，畫面穩定後按 l 鎖定
+2026-11-25 15:50:32,140 [INFO] cam0 已鎖定：focus -1 -> 讀回 -1，exposure -6 -> 讀回 -6，gain 0 -> 讀回 0，wb_temperature 4500 -> 讀回 4500
+2026-11-25 15:50:38,678 [INFO] cam0 匯出設定：{'autofocus': 0, 'focus': -1, 'auto_exposure': 0.25, 'exposure': -6, 'gain': 0, 'auto_wb': 0, 'wb_temperature': 4500}（照片 data/camera_setup/cam0_20261125_155038.png）
+2026-11-25 15:50:38,683 [INFO] 已寫入 config/cameras.yaml 的 cameras[0]（id 0）
+2026-11-25 15:50:48,364 [ERROR] 無法開啟 cam1（device_index=1）
+2026-11-25 15:50:48,366 [ERROR] 無法開啟 cam2（device_index=2）
+2026-11-25 15:50:48,368 [ERROR] 無法開啟 cam3（device_index=3）
+2026-11-25 15:50:48,372 [INFO] 完成，已匯出 1 台：cam0（output/00_camera_setup/run_20261125_155004/camera_settings.yaml）

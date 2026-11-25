@@ -1,0 +1,54 @@
+step: 00_camera_setup
+cameras:
+- 0
+- 1
+- 2
+- 3
+write_config: true
+camera_setup:
+  focus_range:
+  - 0
+  - 255
+  exposure_range:
+  - -13
+  - 0
+  gain_range:
+  - 0
+  - 255
+  wb_range:
+  - 2000
+  - 7500
+  roi_ratio: 0.3
+  readback_interval: 10
+  settle_frames: 15
+cameras_cfg_before:
+  backend: DSHOW
+  fourcc: MJPG
+  buffer_size: 1
+  defaults:
+    width: 1280
+    height: 720
+    fps: 30
+    autofocus: 0
+    focus: 30
+    auto_exposure: 0.25
+    exposure: -6
+    gain: null
+    auto_wb: 0
+    wb_temperature: 4500
+  cameras:
+  - id: 0
+    device_index: 0
+  - id: 1
+    device_index: 1
+  - id: 2
+    device_index: 2
+  - id: 3
+    device_index: 3
+  measured_baselines_mm:
+    0-1: null
+    1-2: null
+    2-3: null
+    0-3: null
+    0-2: null
+    1-3: null

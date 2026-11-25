@@ -21,6 +21,13 @@ defaults:
 cameras:
   - id: 0
     device_index: 0
+    autofocus: 0
+    focus: -1
+    auto_exposure: 0.25
+    exposure: -6
+    gain: 0
+    auto_wb: 0
+    wb_temperature: 4500
   - id: 1
     device_index: 1
   - id: 2
