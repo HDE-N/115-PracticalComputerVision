@@ -62,6 +62,9 @@ python src/visualize.py cloud                # 顯示點雲
 python src/visualize.py measure              # 量兩點距離，驗證尺度（需要 open3d）
 ```
 - 拍照視窗：空白鍵拍照，q / ESC 結束。每按一次都會存檔（不論是否偵測到角點）。
+  - 預覽顯示 `corners`（ChArUco 角點）與 `markers`（ArUco 標記）。**markers 有數字但 corners 是 0** 代表
+    `board.yaml` 的方格數 / 圖樣版本與實際板子不符：讓整塊板子入鏡後按 `b`，會自動偵測並寫回 board.yaml
+    （偵測用的照片與結果一樣會保存）。markers 也是 0 時，請檢查對焦、曝光（camera_setup.py）與字典家族。
 - **參數 UI**：上方是該程式的執行參數（模式、相機、shot、run），下方分頁是相關的設定檔內容
   （標定板、相機、門檻值），說明文字取自 yaml 註解。
   - 修改後按「執行」：只套用於本次執行（以 `--set` 傳給程式），不改 `config/*.yaml`，

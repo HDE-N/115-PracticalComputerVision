@@ -99,6 +99,7 @@ def main() -> None:
         return
     finder = CharucoFinder(cfg["board"])
     obs = []   # 每組 x 每台相機一筆
+    n_mismatch = 0    # 看得到 marker 卻沒有角點的照片數（board.yaml 方格數可能錯誤）
     for f_idx, fd in enumerate(frame_dirs):
         for i in cams_all:
             o = {"frame": fd.name, "frame_idx": f_idx, "cam": i, "n_corners": 0, "pnp_rms_px": np.nan,
@@ -115,6 +116,8 @@ def main() -> None:
                 continue
             corners, ids = finder.detect(img)
             o["corners"], o["ids"], o["n_corners"] = corners, ids, int(len(ids))
+            if finder.diagnose(len(ids)):
+                n_mismatch += 1
             if len(ids) < int(p["min_corners"]):
                 o["reason"] = f"角點不足（< {p['min_corners']}）"
                 continue
@@ -138,6 +141,10 @@ def main() -> None:
 
     n_valid = sum(o["valid"] for o in obs)
     log.info(f"共 {len(frame_dirs)} 組照片，有效觀測 {n_valid} 筆")
+    if n_mismatch:
+        log.warning(f"{n_mismatch} 張照片看得到 ArUco marker 卻幾乎找不到 ChArUco 角點："
+                    f"config/board.yaml 的方格數（{finder.size_text}）或圖樣版本可能與實際板子不符。"
+                    "請用 python src/detect_board.py --image <其中一張照片> --apply 確認後重新執行（照片不用重拍）。")
     save_csv(run_dir / "observations.csv",
              [{k: o[k] for k in ("frame", "cam", "n_corners", "pnp_rms_px", "valid", "reason")} for o in obs])
     det_obs = np.concatenate([[k] * o["n_corners"] for k, o in enumerate(obs)]).astype(np.int32) \

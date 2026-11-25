@@ -5,7 +5,7 @@
   extrinsic  多台同時拍外參標定照片  -> data/extrinsic/frame_xxx/cam{i}.png (+ frame.json)
   object     多台同時拍物品照片      -> data/object/shot_xxx/cam{i}.png (+ shot.json)
 
-操作：空白鍵拍照，q 或 ESC 結束。
+操作：空白鍵拍照，b 自動偵測標定板（字典 / 方格數，寫回 board.yaml），q 或 ESC 結束。
 每次按下空白鍵拍到的照片都會保存（即使偵測不到角點），之後的步驟會自動判斷是否採用。
 
 範例：
@@ -51,6 +51,25 @@ GUIDE = {
 }
 
 
+DIAG_HINT = ("[提示] 看得到 ArUco marker 但找不到 ChArUco 角點：通常是 config/board.yaml 的方格數"
+             "（squares_x / squares_y）或圖樣版本與實際板子不符。讓整塊板子入鏡後按 b 自動偵測並套用。")
+
+
+def auto_detect_board(root: Path, cfg: dict, frame: np.ndarray, cam: Camera) -> dict | None:
+    """用目前畫面偵測標定板參數並寫回 board.yaml（照片與結果都會保存），回傳新的 board 設定。"""
+    from detect_board import detect_and_record, save_camera_photo
+    print("[標定板偵測] 分析目前畫面中…（需要數秒）")
+    source = save_camera_photo(root, frame, cam.cam_id, cam.read_settings(), origin="capture")
+    res = detect_and_record(root, cfg, frame, source, apply=True)
+    if res.get("board"):
+        b = res["board"]
+        print(f"[標定板偵測] 已套用：{b['dictionary']}，方格 {b['squares_x']} x {b['squares_y']}"
+              f"{'（舊版圖樣）' if b.get('legacy_pattern') else ''}")
+        return b
+    print(f"[標定板偵測] 失敗：{res.get('reason', '未寫回 board.yaml')}")
+    return None
+
+
 def next_index(names: list[str], pattern: str) -> int:
     idx = [int(m.group(1)) for n in names if (m := re.search(pattern, n))]
     return max(idx) + 1 if idx else 1
@@ -89,6 +108,7 @@ def capture_intrinsic(root: Path, cfg: dict, cam_id: int) -> None:
     win = f"intrinsic cam{cam_id}"
     frame_count, corners, ids = 0, np.zeros((0, 2)), np.zeros((0,), int)
     saved_now = 0
+    diag, hinted = None, False
     try:
         while True:
             ok, frame = cam.read()
@@ -98,21 +118,39 @@ def capture_intrinsic(root: Path, cfg: dict, cam_id: int) -> None:
             frame_count += 1
             if frame_count % int(params["capture"]["detect_interval"]) == 0:
                 corners, ids = finder.detect(frame)
+                diag = finder.diagnose(len(ids))
+                if diag and not hinted:
+                    print(DIAG_HINT)
+                    hinted = True
 
             vis = finder.draw(frame, corners, ids)
             for c in coverage:
                 for x, y in c.astype(int):
                     cv2.circle(vis, (x, y), 3, (0, 200, 0), -1)
             color = (0, 255, 0) if len(ids) >= min_corners else (0, 0, 255)
-            put_text(vis, f"cam{cam_id} corners {len(ids)}/{finder.max_corners}", (15, 35), color)
+            put_text(vis, f"cam{cam_id} corners {len(ids)}/{finder.max_corners}  markers {len(finder.last_marker_ids)}",
+                     (15, 35), color)
             put_text(vis, f"saved {len(existing) + saved_now}  sharp {sharpness(frame):.0f}", (15, 70))
-            put_text(vis, "SPACE: capture   q/ESC: quit", (15, vis.shape[0] - 20), (255, 255, 255), 0.6)
+            if diag:
+                put_text(vis, diag, (15, 105), (0, 0, 255), 0.6)
+                put_text(vis, "press b to auto-detect the board", (15, 135), (0, 0, 255), 0.6)
+            put_text(vis, "SPACE: capture   b: detect board   q/ESC: quit", (15, vis.shape[0] - 20),
+                     (255, 255, 255), 0.6)
             scale = float(params["capture"]["preview_width"]) / vis.shape[1]
             cv2.imshow(win, cv2.resize(vis, None, fx=scale, fy=scale))
 
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
                 break
+            if key == ord("b"):
+                board = auto_detect_board(root, cfg, frame, cam)
+                if board is not None:
+                    cfg["board"] = board
+                    finder = CharucoFinder(board)
+                    coverage = [finder.detect(im)[0] for im in (imread(p) for p in existing) if im is not None]
+                    corners, ids = finder.detect(frame)
+                    diag = finder.diagnose(len(ids))
+                continue
             if key == ord(" "):
                 c_full, id_full = finder.detect(frame)   # 用完整解析度、同一張畫面重新偵測
                 name = f"img_{timestamp()}_{seq:03d}"
@@ -181,6 +219,9 @@ def capture_multi(root: Path, cfg: dict, cam_ids: list[int], mode: str) -> None:
     win = f"{mode} cams {cam_ids}"
     loop = 0
     det = {i: (np.zeros((0, 2)), np.zeros((0,), int)) for i in cam_ids}
+    n_markers = {i: 0 for i in cam_ids}
+    diag = {i: None for i in cam_ids}
+    hinted = False
     saved_now = 0
     try:
         while True:
@@ -194,6 +235,11 @@ def capture_multi(root: Path, cfg: dict, cam_ids: list[int], mode: str) -> None:
             if detect and loop % int(params["capture"]["detect_interval"]) == 0:
                 for i, f in zip(cam_ids, frames):
                     det[i] = finder.detect(f)
+                    n_markers[i] = len(finder.last_marker_ids)
+                    diag[i] = finder.diagnose(len(det[i][1]))
+                if any(diag.values()) and not hinted:
+                    print(DIAG_HINT)
+                    hinted = True
 
             vis_list = []
             for i, f in zip(cam_ids, frames):
@@ -201,18 +247,33 @@ def capture_multi(root: Path, cfg: dict, cam_ids: list[int], mode: str) -> None:
                 if detect:
                     n = len(det[i][1])
                     color = (0, 255, 0) if n >= min_corners else (0, 0, 255)
-                    put_text(v, f"cam{i} corners {n}", (15, 45), color, 1.2)
+                    put_text(v, f"cam{i} corners {n}  markers {n_markers[i]}", (15, 45), color, 1.2)
+                    if diag[i]:
+                        put_text(v, diag[i], (15, 90), (0, 0, 255), 0.8)
+                        put_text(v, "press b to auto-detect the board", (15, 125), (0, 0, 255), 0.8)
                 else:
                     put_text(v, f"cam{i} sharp {sharpness(f):.0f}", (15, 45), (0, 255, 255), 1.2)
                 vis_list.append(v)
             vis = mosaic(vis_list, int(params["capture"]["preview_width"]))
-            put_text(vis, f"{prefix}_{seq:03d}  saved {saved_now}  sync {spread:.0f} ms   SPACE: capture  q/ESC: quit",
+            keys_text = "SPACE: capture  b: detect board  q/ESC: quit" if detect else "SPACE: capture  q/ESC: quit"
+            put_text(vis, f"{prefix}_{seq:03d}  saved {saved_now}  sync {spread:.0f} ms   {keys_text}",
                      (10, vis.shape[0] - 12), (255, 255, 255), 0.55)
             cv2.imshow(win, vis)
 
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
                 break
+            if detect and key == ord("b"):
+                best = max(range(len(cam_ids)), key=lambda k: n_markers[cam_ids[k]])   # 用看到最多 marker 的相機
+                board = auto_detect_board(root, cfg, frames[best], cams[best])
+                if board is not None:
+                    cfg["board"] = board
+                    finder = CharucoFinder(board)
+                    for i, f in zip(cam_ids, frames):
+                        det[i] = finder.detect(f)
+                        n_markers[i] = len(finder.last_marker_ids)
+                        diag[i] = finder.diagnose(len(det[i][1]))
+                continue
             if key == ord(" "):
                 folder = base_dir / f"{prefix}_{seq:03d}"
                 folder.mkdir(parents=True, exist_ok=False)
@@ -278,7 +339,7 @@ def launch_gui() -> None:
     from common.gui import Arg, ScriptGUI, cam_choices
     ScriptGUI(
         __file__, "拍照", "空白鍵拍照，q / ESC 結束（在 OpenCV 預覽視窗中按）。每按一次都會存檔，照片只增不刪。"
-        "標定板參數錯誤時預覽畫面會顯示 corners 0。",
+        "預覽畫面有 markers 但 corners 0 時，代表標定板方格數設定錯誤：讓整塊板子入鏡後按 b 自動偵測並寫回 board.yaml。",
         args=[
             Arg("mode", "模式", "combo", "intrinsic", editable=False, choices=[
                 ("intrinsic", "intrinsic — 內參（單台，每台 20–30 張）"),

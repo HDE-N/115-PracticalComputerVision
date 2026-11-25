@@ -34,6 +34,9 @@ class CharucoFinder:
         self.detector = cv2.aruco.CharucoDetector(self.board, charuco_params, detector_params)
         # 所有內角點在標定板座標系的 3D 座標 (N, 3)，z = 0，單位 mm
         self.all_object_points = np.asarray(self.board.getChessboardCorners(), dtype=np.float64)
+        self.n_board_markers = len(np.asarray(self.board.getIds()).reshape(-1))
+        self.size_text = f"{board_cfg['squares_x']}x{board_cfg['squares_y']}"
+        self.last_marker_ids = np.zeros((0,), np.int32)    # 最近一次 detect 偵測到的 ArUco id
 
     @property
     def max_corners(self) -> int:
@@ -42,10 +45,27 @@ class CharucoFinder:
     def detect(self, image: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """回傳 (corners (N,2) float64, ids (N,) int)，沒偵測到時回傳空陣列。"""
         gray = image if image.ndim == 2 else cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        ch_corners, ch_ids, _, _ = self.detector.detectBoard(gray)
+        ch_corners, ch_ids, _, m_ids = self.detector.detectBoard(gray)
+        self.last_marker_ids = np.zeros((0,), np.int32) if m_ids is None else m_ids.reshape(-1).astype(np.int32)
         if ch_ids is None or len(ch_ids) == 0:
             return np.zeros((0, 2), np.float64), np.zeros((0,), np.int32)
         return ch_corners.reshape(-1, 2).astype(np.float64), ch_ids.reshape(-1).astype(np.int32)
+
+    def diagnose(self, n_corners: int, marker_ids: np.ndarray | None = None) -> str | None:
+        """看到 ArUco marker 卻沒有（或很少）ChArUco 角點時，回傳原因（英文，可畫在畫面上）；正常回傳 None。
+
+        最常見的原因是 board.yaml 的方格數錯誤：偵測到的 marker id 超出設定板子的範圍，
+        或 marker 排列與設定不符，CharucoDetector 就內插不出角點。
+        """
+        ids = self.last_marker_ids if marker_ids is None else np.asarray(marker_ids).reshape(-1)
+        if len(ids) < 4:
+            return None
+        if int(ids.max()) >= self.n_board_markers:
+            return (f"BOARD SIZE MISMATCH: marker id {int(ids.max())} > {self.n_board_markers - 1} "
+                    f"(board.yaml {self.size_text})")
+        if n_corners == 0 or n_corners < len(ids) // 2:
+            return f"markers {len(ids)} but corners {n_corners}: check squares_x/y, legacy_pattern"
+        return None
 
     def object_points(self, ids: np.ndarray) -> np.ndarray:
         return self.all_object_points[np.asarray(ids, dtype=int)]

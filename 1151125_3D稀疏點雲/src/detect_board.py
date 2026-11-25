@@ -110,7 +110,18 @@ def analyze(gray: np.ndarray, board_cfg: dict, family: str, max_squares: int, lo
     log.info(f"各字典家族偵測到的 marker 數：{counts}")
     uniq = np.unique(ids)
     if fam is None or len(uniq) < 4:
-        res["reason"] = "偵測到的 ArUco marker 少於 4 個（板子不在畫面中、太小、反光或模糊）"
+        bright = float(gray.mean())
+        sharp = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        hints = []
+        if bright < 60:
+            hints.append(f"畫面太暗（平均亮度 {bright:.0f}），請調高 cameras.yaml 的 exposure 或用 camera_setup.py")
+        elif bright > 200:
+            hints.append(f"畫面太亮（平均亮度 {bright:.0f}），請調低 exposure")
+        if sharp < 50:
+            hints.append(f"畫面模糊（清晰度 {sharp:.0f}），請調整 focus 或用 camera_setup.py 自動對焦後鎖定")
+        res["reason"] = ("偵測到的 ArUco marker 少於 4 個（板子不在畫面中、太小、反光、模糊，或不是 ArUco 標記）"
+                         + ("；" + "；".join(hints) if hints else ""))
+        res["image_brightness"], res["image_sharpness"] = bright, sharp
         return res
     if len(uniq) < len(ids):
         log.warning(f"有重複的 marker id（{len(ids) - len(uniq)} 個），可能是誤判，只保留第一個")
@@ -249,29 +260,66 @@ def main() -> None:
             print("未拍照，結束")
             return
         img, settings = got
-        out_dir = root / "data" / "board_detect"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        name = f"img_{timestamp()}_cam{args.cam}"
-        img_path = out_dir / f"{name}.png"
-        imwrite(img_path, img)
-        save_json(out_dir / f"{name}.json", {
-            "file": img_path.name, "mode": "board_detect", "camera_id": args.cam, "timestamp": now_iso(),
-            "image_size": [img.shape[1], img.shape[0]], "settings_readback": settings,
-        })
-        source = {"type": "camera", "camera_id": args.cam, "path": rel(img_path, root)}
+        source = save_camera_photo(root, img, args.cam, settings)
 
+    res = detect_and_record(root, cfg, img, source, args.family, args.max_squares, args.apply)
+    if not res["ok"]:
+        sys.exit(1)
+
+
+def save_camera_photo(root: Path, img: np.ndarray, cam_id: int, settings: dict, origin: str = "detect_board") -> dict:
+    """保存偵測用的照片與 metadata（data/board_detect/），回傳 source 紀錄。"""
+    out_dir = root / "data" / "board_detect"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    name = f"img_{timestamp()}_cam{cam_id}"
+    img_path = out_dir / f"{name}.png"
+    n = 2
+    while img_path.exists():
+        img_path = out_dir / f"{name}_{n}.png"
+        n += 1
+    imwrite(img_path, img)
+    save_json(img_path.with_suffix(".json"), {
+        "file": img_path.name, "mode": "board_detect", "origin": origin, "camera_id": cam_id,
+        "timestamp": now_iso(), "image_size": [img.shape[1], img.shape[0]], "settings_readback": settings,
+    })
+    return {"type": "camera", "camera_id": cam_id, "path": rel(img_path, root), "origin": origin}
+
+
+def apply_to_config(root: Path, board_cfg: dict, res: dict, log) -> dict | None:
+    """把偵測結果寫回 board.yaml 並存成標定板版本；回傳更新後的 board 設定（失敗回傳 None）。"""
+    updates = {("dictionary",): res["dictionary"], ("squares_x",): res["squares_x"],
+               ("squares_y",): res["squares_y"], ("legacy_pattern",): res["legacy_pattern"]}
+    missing = update_yaml_file(root / "config" / "board.yaml", updates)
+    if missing:
+        log.error(f"board.yaml 中找不到 {missing}，請手動修改")
+        return None
+    board = dict(board_cfg, **{k[0]: v for k, v in updates.items()})
+    log.info("已寫回 config/board.yaml")
+    if board.get("name"):
+        save_board_preset(root, str(board["name"]), board)
+        log.info(f"已存成標定板版本「{board['name']}」（config/board_presets.yaml）")
+    return board
+
+
+def detect_and_record(root: Path, cfg: dict, img: np.ndarray, source: dict, family: str = "auto",
+                      max_squares: int = 20, apply: bool = False) -> dict:
+    """偵測標定板並把結果存到 output/00_board_detect/run_*/；apply 時寫回 board.yaml。
+
+    回傳結果 dict；套用成功時 res["board"] 為更新後的 board 設定。
+    """
     step_dir = root / "output" / "00_board_detect"
     run_dir = create_run_dir(step_dir)
-    log = setup_logger(run_dir)
+    log = setup_logger(run_dir, name="board_detect")
     log.info(f"===== 標定板偵測，影像：{source['path']}，輸出：{rel(run_dir, root)} =====")
     save_yaml(run_dir / "config_used.yaml", {
-        "step": "00_board_detect", "source": source, "family": args.family,
-        "max_squares": args.max_squares, "apply": args.apply, "board_before": cfg["board"],
+        "step": "00_board_detect", "source": source, "family": family,
+        "max_squares": max_squares, "apply": apply, "board_before": cfg["board"],
     })
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.ndim == 3 else img
-    res = analyze(gray, cfg["board"], args.family, args.max_squares, log)
-    imwrite(run_dir / "detection.png", draw_result(img if img.ndim == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR), res))
+    color = img if img.ndim == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    gray = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
+    res = analyze(gray, cfg["board"], family, max_squares, log)
+    imwrite(run_dir / "detection.png", draw_result(color, res))
     draw = res.pop("_draw", None)
     if draw is not None:
         corners, ids, ch_c, ch_ids = draw
@@ -280,37 +328,29 @@ def main() -> None:
                  charuco_corners=np.zeros((0, 2)) if ch_c is None else ch_c.reshape(-1, 2),
                  charuco_ids=np.zeros((0,), int) if ch_ids is None else ch_ids.reshape(-1))
     res["source"] = source
+    res["applied"] = False
 
     if not res["ok"]:
         log.error(f"偵測失敗：{res['reason']}")
-        res["applied"] = False
         save_json(run_dir / "result.json", res)
-        sys.exit(1)
+        return res
 
     log.info(f"結果：{res['dictionary']}，方格 {res['squares_x']} x {res['squares_y']}，"
              f"{'舊版' if res['legacy_pattern'] else '新版'}圖樣，ChArUco 角點 "
              f"{res['n_charuco_corners']}/{res['n_charuco_corners_board']}")
     if res.get("warning"):
         log.warning(res["warning"])
-
-    res["applied"] = False
-    if args.apply:
-        updates = {("dictionary",): res["dictionary"], ("squares_x",): res["squares_x"],
-                   ("squares_y",): res["squares_y"], ("legacy_pattern",): res["legacy_pattern"]}
-        missing = update_yaml_file(root / "config" / "board.yaml", updates)
-        if missing:
-            log.error(f"board.yaml 中找不到 {missing}，請手動修改")
-        else:
-            res["applied"] = True
-            board = dict(cfg["board"], **{k[0]: v for k, v in updates.items()})
-            log.info("已寫回 config/board.yaml")
-            if board.get("name"):
-                save_board_preset(root, str(board["name"]), board)
-                log.info(f"已存成標定板版本「{board['name']}」（config/board_presets.yaml）")
+    if apply:
+        board = apply_to_config(root, cfg["board"], res, log)
+        res["applied"] = board is not None
+        save_json(run_dir / "result.json", res)
+        if board is not None:
+            res["board"] = board
     else:
         log.info("未寫回 board.yaml（要寫回請勾選「寫回 board.yaml」或加 --apply）")
-    save_json(run_dir / "result.json", res)
+        save_json(run_dir / "result.json", res)
     set_latest(step_dir, run_dir)
+    return res
 
 
 def launch_gui() -> None:

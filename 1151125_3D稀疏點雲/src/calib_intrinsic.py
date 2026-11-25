@@ -96,6 +96,7 @@ def run_camera(root: Path, cfg: dict, cam_id: int, force_latest: bool) -> dict:
     records = []      # 每張照片一筆
     det_img, det_ids, det_corners = [], [], []
     image_size = None
+    n_mismatch = 0    # 看得到 marker 卻沒有角點的照片數（board.yaml 方格數可能錯誤）
     for k, path in enumerate(images):
         img = imread(path)
         rec = {"image": path.name, "n_corners": 0, "used": False, "reproj_error_px": None, "reject_reason": ""}
@@ -108,6 +109,8 @@ def run_camera(root: Path, cfg: dict, cam_id: int, force_latest: bool) -> dict:
             image_size = size
         corners, ids = finder.detect(img)
         rec["n_corners"] = int(len(ids))
+        if finder.diagnose(len(ids)):
+            n_mismatch += 1
         det_img += [k] * len(ids)
         det_ids += ids.tolist()
         det_corners += corners.tolist()
@@ -120,6 +123,10 @@ def run_camera(root: Path, cfg: dict, cam_id: int, force_latest: bool) -> dict:
         else:
             rec["_corners"], rec["_ids"] = corners, ids
 
+    if n_mismatch:
+        log.warning(f"{n_mismatch} 張照片看得到 ArUco marker 卻幾乎找不到 ChArUco 角點："
+                    f"config/board.yaml 的方格數（{finder.size_text}）或圖樣版本可能與實際板子不符。"
+                    "請用 python src/detect_board.py --image <其中一張照片> --apply 確認後重新執行（照片不用重拍）。")
     np.savez(run_dir / "detections.npz",
              image_names=np.array([r["image"] for r in records]),
              image_index=np.array(det_img, np.int32),
