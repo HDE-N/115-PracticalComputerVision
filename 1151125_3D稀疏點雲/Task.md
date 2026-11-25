@@ -4,7 +4,7 @@
 
 ## 最終目標: 使用OpenCV與一些工具建出3D稀疏點雲
 
-## 參考資料: ./class_ppt
+## 參考資料: ../class_ppt
 - Day03：相機標定、ChArUco、3A 手動設定、重投影誤差
 - Day04：對極幾何、基礎/本質矩陣、立體標定 stereoCalibrate
 - Day05：特徵點（SIFT / ORB / SURF）

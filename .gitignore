@@ -20,6 +20,9 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
-# 大型原始照片與輸出（若需要上傳結果，請把對應行註解掉）
+# 原始照片：只保存在本機
 data/
-output/*.ply
+
+# 輸出中的預覽圖（去畸變對照、配對圖、點雲截圖、相機位置圖）：只保存在本機
+# 參數檔（yaml / npz / json / csv / log）與點雲（ply）照常上傳
+**/output/**/*.png

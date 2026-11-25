@@ -1,0 +1,38 @@
+# 相機設定（Day03 p33–34：UVC 相機使用手動 3A）
+# !! 標定完成後不可再修改解析度與對焦，否則內參失效 !!
+
+backend: DSHOW        # Windows 用 DSHOW；Linux 用 V4L2；ANY 表示讓 OpenCV 自選
+fourcc: MJPG          # 多台 USB 相機同時開啟時，MJPG 可降低頻寬需求；設 null 表示不設定
+buffer_size: 1        # 緩衝區越小，畫面越即時（部分相機不支援）
+
+# 共同設定：每台相機可在下方 cameras 中個別覆寫；設 null 表示不設定該項
+defaults:
+  width: 1280
+  height: 720
+  fps: 30
+  autofocus: 0          # 0 = 關閉自動對焦
+  focus: 30             # 對焦值：0 = 無限遠，20–40 約對應 50–80 cm，255 = 最近
+  auto_exposure: 0.25   # DSHOW 下 0.25 = 手動曝光
+  exposure: -6          # 曝光值 = 2^exposure 秒；數值越小畫面越暗
+  auto_wb: 0            # 0 = 關閉自動白平衡
+  wb_temperature: 4500  # 色溫（K）
+
+cameras:
+  - id: 0
+    device_index: 0
+  - id: 1
+    device_index: 1
+  - id: 2
+    device_index: 2
+  - id: 3
+    device_index: 3
+    # focus: 25          # 個別覆寫範例
+
+# 相機之間的實測距離（mm，量鏡頭中心到鏡頭中心），用來驗證外參；未量測填 null
+measured_baselines_mm:
+  "0-1": null
+  "1-2": null
+  "2-3": null
+  "0-3": null
+  "0-2": null
+  "1-3": null

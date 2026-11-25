@@ -1,0 +1,7 @@
+opencv-contrib-python>=4.8
+numpy
+scipy
+pyyaml
+matplotlib
+# 選用：互動式 3D 檢視與量測距離（visualize.py measure）
+open3d

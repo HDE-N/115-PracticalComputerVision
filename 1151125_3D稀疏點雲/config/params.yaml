@@ -1,0 +1,55 @@
+# 各步驟的參數與品質門檻
+# 結果未達門檻時，程式不會自動更新 latest.txt，請先檢查原因，不要直接放寬門檻。
+
+capture:
+  preview_width: 1280       # 預覽視窗寬度（px），只影響顯示
+  detect_interval: 3        # 每幾個畫面做一次角點偵測（降低預覽延遲）
+  sync_warn_ms: 50          # 多相機擷取時間差超過此值時警告
+
+intrinsic:                  # 步驟 1-1
+  min_corners: 6            # 單張照片最少角點數
+  min_images: 10            # 最少有效照片數
+  max_rms_px: 0.5           # RMS 重投影誤差門檻（Day03 p39）
+  reject_worst: true        # RMS 超過門檻時，逐張剔除誤差最大的照片後重算（Task.md 1-1 步驟 4）
+  max_reject_ratio: 0.2     # 最多剔除的照片比例
+  flags: []                 # calibrateCamera 旗標，例：[CALIB_RATIONAL_MODEL]
+  coverage_grid: [8, 6]     # 計算角點涵蓋率時把畫面切成的格數（寬, 高）
+  min_coverage: 0.6         # 涵蓋率低於此值時警告（提醒補拍畫面四角）
+  preview_count: 5          # 輸出幾張去畸變對照圖
+
+extrinsic:                  # 步驟 1-2
+  min_corners: 6            # 單張照片最少角點數
+  pnp_max_reproj_px: 2.0    # 單張 solvePnP 重投影誤差超過此值則不採用
+  min_views_per_frame: 2    # 一組照片至少要有幾台相機看到標定板才用於 BA
+  max_reproj_px: 1.0        # BA 後每台相機的 RMS 門檻
+  ba_method: lm             # lm = Levenberg-Marquardt（Day06 p10）；trf = 可搭配魯棒損失函數
+  ba_loss: huber            # 只在 ba_method = trf 時使用：linear / huber / soft_l1 / cauchy
+  ba_f_scale_px: 1.0        # 魯棒損失函數的尺度（px），只在 trf 時使用
+  ba_max_nfev: null         # 最大函數評估次數，null = scipy 預設值
+
+features:                   # 步驟 2-2
+  sift:
+    nfeatures: 0            # 0 = 不限制
+    contrast_threshold: 0.04
+    edge_threshold: 10
+    sigma: 1.6
+  pairs: all                # all = 所有相機兩兩配對；adjacent = 0-1,1-2,2-3,3-0；或列表 [[0,1],[1,2]]
+  ratio: 0.75               # Lowe ratio test
+  mutual_check: true        # 雙向配對檢查
+  epipolar_px: 2.0          # 對極線距離門檻（Day04 對極約束）
+  compare_ransac: true      # 另外用 RANSAC / LMedS 估計 F，作為比較
+  ransac_threshold_px: 1.0
+  ransac_confidence: 0.999
+  vis_max_matches: 200      # 配對視覺化圖最多畫幾條線
+
+reconstruction:             # 步驟 2-3、2-4
+  multiview: true           # 把同一特徵在多台相機的配對串成 track，一起三角化
+  min_views: 2
+  max_reproj_px: 2.0        # 三角化點的重投影誤差門檻
+  min_angle_deg: 2.0        # 三角化夾角門檻
+  refine_points: true       # 篩選後用非線性最小平方法微調 3D 點（只優化點，不動相機）
+  bbox_mm: null             # 只保留此範圍內的點：[xmin, xmax, ymin, ymax, zmin, zmax]（cam0 座標，mm）
+  outlier_removal: true     # 統計式離群點濾除
+  outlier_nb_neighbors: 20
+  outlier_std_ratio: 2.0
+  screenshot_azimuths: [-60, -20, 20, 60]   # 點雲截圖的水平視角（度）
