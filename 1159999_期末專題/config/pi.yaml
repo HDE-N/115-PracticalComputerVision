@@ -1,0 +1,68 @@
+# 拍攝端（Raspberry Pi 5）設定：S1、S2、S5 的程式與 common/pi_common.py 讀取本檔
+# 相機一律以「實體 USB 孔」路徑（/dev/v4l/by-path/...）開啟，避免 /dev/videoN 重新開機後互換。
+
+ssd_mount: /mnt/ssd                    # SSD 掛載點（ext4，/etc/fstab 以 UUID 掛載）
+capture_root: /mnt/ssd/3dgs_capture    # 影像存放根目錄：<capture_root>/<scene>/<session>/group_xxxxx/
+min_free_gb: 5                         # SSD 剩餘空間低於此值時拒絕開始拍攝
+
+cameras:                               # 2 台相機（上下排列）；測試 4 台時在此加入其他相機
+  - id: 0
+    name: bottom                       # 下方相機（平視）
+    device: /dev/v4l/by-path/platform-xhci-hcd.0-usb-0:2:1.0-video-index0
+  - id: 1
+    name: top                          # 上方相機（仰角）
+    device: /dev/v4l/by-path/platform-xhci-hcd.1-usb-0:2:1.0-video-index0
+
+stream:                                # 相機輸出格式（v4l2-ctl --list-formats-ext 實測支援）
+  width: 2048                          # 2048x1536 / 1920x1080 / 1280x720；決定後不可再改（內參與解析度綁定）
+  height: 1536
+  fps: 30
+  fourcc: MJPG                         # 直接保存相機輸出的 MJPEG，不解碼、不重新壓縮
+
+# V4L2 控制項：依序套用（先關自動，再設數值）。名稱與範圍以 v4l2-ctl --list-ctrls 為準
+controls:
+  power_line_frequency: 2              # 2 = 60 Hz（台灣市電），避免日光燈條紋
+  focus_automatic_continuous: 0        # 關閉自動對焦
+  white_balance_automatic: 0           # 關閉自動白平衡
+  auto_exposure: 1                     # 1 = 手動曝光
+  exposure_time_absolute: 65530        # !! 待實測：本相機回報範圍異常，疑似 16 位元表示的負數（65530 = -6）
+                                       #    用 S1/set_controls.py --sweep exposure_time_absolute 找合適值
+  white_balance_temperature: 3         # 只有 1–5 五段
+  gain: 0
+  sharpness: 0                         # 不銳化，避免光暈影響 3DGS
+  backlight_compensation: 0
+
+# 對焦設定檔（僅能軟體對焦）：每個設定檔各做一次 S3 標定
+# 對焦值與距離的關係待實測：用 S1/set_controls.py --sweep focus_absolute 找最清晰的值
+profiles:
+  object:                              # 物品（約 0.5–1 m）
+    focus_absolute: 300
+  room:                                # 教室（約 2–3 m）
+    focus_absolute: 100
+  outdoor:                             # 建築外觀（遠景）
+    focus_absolute: 0
+
+capture:
+  ring_size: 6                         # 每台相機保留最近幾張影格（挑選時間最接近的一組）
+  frames_after_trigger: 3              # 觸發後每台至少再收幾張，從中挑時間差最小的組合
+  timeout_s: 2.0                       # 等待影格的逾時
+  max_skew_ms: 20                      # 同組時間差上限；超過標記「待重拍」
+  focus_check: true                    # 每組讀回對焦值，與設定不同時警告
+  reconnect_after_s: 2.0               # 相機超過此秒數沒有新影格就重新開啟
+
+power:
+  check_throttled: true                # 每組讀取 vcgencmd get_throttled
+  stop_after_undervoltage: 3           # 連續幾組電壓不足就停止拍攝
+  auto_shutdown: false                 # true：停止拍攝後自動安全關機
+  runtime_remind_hours: 3.5            # 累計運行多久提醒檢查行動電源電量（Pi 讀不到行動電源電量）
+
+web:                                   # 筆電以瀏覽器連到 http://<Pi 的 IP>:8000
+  host: 0.0.0.0
+  port: 8000
+  thumb_width: 480
+
+gpio:                                  # 選用：實體按鈕 / 蜂鳴器（BCM 腳位），null = 不使用
+  button_pin: null
+  buzzer_pin: null
+
+board_yaml: board.yaml                 # 標定模式顯示 ChArUco 角點數用（相對於 config/）

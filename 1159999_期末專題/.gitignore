@@ -1,0 +1,17 @@
+# 本專題的大型檔案只存在本機 / SSD / 伺服器，不上傳 GitHub
+# 上傳：程式、設定、文件、各 run 的 config_used.yaml / *.json / *.csv / *.log / *.md
+
+data/
+output/**/*.ply
+output/**/*.splat
+output/**/*.jpg
+output/**/*.jpeg
+output/**/*.pt
+output/**/*.db
+output/**/*.bin
+output/**/workspace/
+output/**/images/
+output/**/undistorted/
+output/**/dataset/
+output/**/gsplat/
+web/assets/

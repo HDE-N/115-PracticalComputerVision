@@ -1,0 +1,53 @@
+# 各步驟參數與品質門檻
+# 結果未達門檻時不會更新 latest.txt；請先找原因，不要直接放寬門檻。
+# 場景可在 config/scenes/<scene>.yaml 的 params_override 覆寫（例：物品場景的畫質門檻較高）。
+
+calib:                        # S3（實際門檻沿用 1151125 config/params.yaml 的 intrinsic / extrinsic）
+  max_baseline_err_pct: 2.0   # rig 相機間距：標定值 vs 實測值
+
+ingest:                       # S6
+  require_all_cams: true      # 每組都要有所有相機的影像
+
+preprocess:                   # S7
+  thumb_width: 640            # 計算清晰度時把影像縮到此寬度
+  blur_abs_min: 15.0          # Laplacian 變異數絕對下限（縮圖上計算）
+  blur_rel_ratio: 0.35        # 低於「該相機中位數 × 此比例」視為模糊
+  group_reject_bad: 1         # 同一組中不合格影像 >= 此數就整組剔除（rig 需要整組）
+  dedupe_min_diff: 1.5        # 與上一個保留組的平均灰階差 < 此值視為重複按到（0 = 不檢查）
+  saturated_max_ratio: 0.05   # 過曝像素比例上限（只標記，不剔除）
+  dark_mean_min: 25           # 平均亮度下限（只標記，不剔除）
+  reject_flagged: true        # 剔除 Pi 端標記為「待重拍」的組（時間差過大、電壓不足）
+  min_keep_ratio: 0.8         # 保留比例門檻
+
+sfm:                          # S8
+  min_registered_ratio: 0.95  # 註冊成功的影像比例
+  max_mean_reproj_px: 1.0     # 平均重投影誤差
+  require_single_model: true  # 只產生 1 個模型（斷成多段代表拍攝不連續）
+
+align:                        # S9（mode: charuco）
+  min_views: 3                # 角點至少被幾張影像看到才三角化
+  max_corner_reproj_px: 2.0   # 三角化角點的重投影誤差上限
+  min_corners: 8              # 至少幾個角點才能求相似轉換
+  max_square_err_pct: 1.0     # 重建出的方格邊長 vs 實際值
+  max_rms_mm: 1.5             # 角點對齊殘差 RMS
+  max_images: 300             # 最多用幾張影像偵測 ChArUco（加快速度）
+
+train:                        # S10
+  max_minutes: 30             # 訓練時間上限
+  psnr_min: 25.0              # 測試視角 PSNR 下限
+  ssim_min: 0.85
+  lpips_max: 0.25
+
+cleanup:                      # S12
+  min_opacity: 0.005          # 不透明度下限（sigmoid 後）
+  max_scale_m: 0.5            # 單顆高斯最大軸長上限（公尺），過大的多半是霧狀雜點
+  sor_neighbors: 20           # 統計式離群點濾除：鄰居數
+  sor_std_ratio: 2.0          # 統計式離群點濾除：平均 + n·σ
+  max_psnr_drop_db: 0.3       # （記錄用）清理後畫質下降上限
+
+evaluate:                     # S11
+  max_dim_err_pct: 3.0        # 物品尺寸 / 實測距離誤差
+
+export:                       # S14
+  max_size_mb: 100            # 網頁模型檔大小上限
+  sort_by_importance: true    # .splat 依重要度排序（大且不透明的在前，漸進載入較好看）

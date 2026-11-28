@@ -1,0 +1,41 @@
+# 運算端流程設定：每一步使用的工具與指令
+# 換工具（例：COLMAP 換 GLOMAP、gsplat 換其他訓練器）只需修改本檔，不改程式。
+
+python: python                         # 執行子步驟與 gsplat 的 Python（可填 conda 環境的完整路徑）
+calib_toolkit: ../1151125_3D稀疏點雲    # S3 沿用的標定程式（相對於本專題資料夾）
+
+colmap:                                # S8 位姿估計
+  bin: ~/miniconda3/envs/colmap/bin/colmap   # COLMAP 執行檔（PATH.md B5：conda-forge CUDA 版，位置 = $(conda info --base)/envs/colmap/bin/colmap）
+  use_gpu: auto                        # auto：先用 GPU 版 SIFT，失敗時自動改用 CPU | true | false
+  camera_model_calibrated: FULL_OPENCV # 有 S3 標定結果時使用（k1 k2 p1 p2 k3 k4 k5 k6）
+  camera_model_uncalibrated: OPENCV    # 沒有標定結果時讓 COLMAP 自行估計內參
+  use_rig: true                        # 以 rig 約束同一組影像（需有 S3 外參；失敗時自動改為不使用 rig）
+  matcher: auto                        # auto：object 場景 exhaustive、room 場景 sequential；也可直接填 exhaustive / sequential
+  sequential_overlap: 10               # sequential 配對的前後組數
+  vocab_tree_path: null                # sequential 配對的迴路偵測詞彙樹（.bin），null = 不做迴路偵測
+  mapper_args_calibrated:              # 有標定結果時固定內參
+    ["--Mapper.ba_refine_focal_length", "0", "--Mapper.ba_refine_principal_point", "0",
+     "--Mapper.ba_refine_extra_params", "0"]
+  mapper_args_rig:                     # 使用 rig 時固定相機間相對位姿（不支援時自動重試、不加此參數）
+    ["--Mapper.ba_refine_sensor_from_rig", "0"]
+  extra_args:                          # 各指令的額外參數（依 COLMAP 版本調整）
+    feature_extractor: []
+    matcher: []
+    mapper: []
+    image_undistorter: []
+
+trainer:                               # S10 3DGS 訓練（gsplat examples/simple_trainer.py）
+  gsplat_dir: ~/gsplat                 # git clone https://github.com/nerfstudio-project/gsplat 的位置
+  strategy: default                    # default（同 3DGS 原始論文）| mcmc（可設高斯數量上限）
+  max_steps: 30000
+  data_factor: 1                       # 影像縮小倍率（1 = 原尺寸；2048x1536 訓練太慢時改 2）
+  command:                             # {xxx} 會被替換；參數名稱依 gsplat v1.5.3 simple_trainer.py --help（tyro，連字號格式）
+    ["{python}", "{gsplat_dir}/examples/simple_trainer.py", "{strategy}",
+     "--data-dir", "{data_dir}", "--data-factor", "{data_factor}", "--result-dir", "{result_dir}",
+     "--max-steps", "{max_steps}", "--eval-steps", "{max_steps}", "--save-steps", "{max_steps}",
+     "--save-ply", "--ply-steps", "{max_steps}", "--disable-viewer"]
+  extra_args: []                       # 例：mcmc 時 ["--strategy.cap-max", "1000000"]
+  keep_last_ckpt_only: true            # 伺服器空間有限，只保留最後一個 checkpoint
+
+export:                                # S14 網頁匯出
+  web_dir: web                         # 網頁檢視器資料夾（相對於本專題資料夾）

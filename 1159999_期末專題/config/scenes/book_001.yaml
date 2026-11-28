@@ -1,0 +1,37 @@
+# 場景設定：P0 物品小規模試行 —— 放在桌上的一本書
+# 換場景時複製本檔改名（例：classroom_A101.yaml），程式不需修改。
+
+name: book_001
+type: object                  # object（物品）| room（教室）| outdoor（建築外觀）
+profile: object               # 對焦設定檔：config/pi.yaml profiles 與 config/rig.yaml profiles
+description: 放在桌上的一本書（P0 小規模試行）
+
+align:                        # S9 尺度與座標對齊
+  mode: charuco               # charuco：以桌上的 ChArUco 板定義公尺尺度與水平面 | none：不對齊
+  origin: board_center        # 原點：board_center（板子中心）| board_corner（板子第一個角點）
+  # 對齊後座標：公尺、Y 軸朝上（垂直桌面）、原點在桌面上的板子中心
+
+crop:                         # S12 裁切範圍（對齊後座標，公尺）；書要放在這個範圍內
+  min: [-0.40, -0.01, -0.40]  # y 下限略低於桌面，保留書底邊緣
+  max: [ 0.40,  0.25,  0.40]
+
+measured:                     # 捲尺 / 尺實際量測，S11 用來驗證尺度
+  object_dims_mm: null        # 書的長、寬、厚，例：[257, 182, 20]（順序不限）
+
+params_override:              # 覆寫 config/params.yaml（物品場景較容易，畫質門檻較高）
+  train:
+    psnr_min: 28.0
+    max_minutes: 20
+  cleanup:
+    max_scale_m: 0.05
+
+viewer:                       # S14 網頁檢視器的初始視角（對齊後座標，公尺）
+  camera_up: [0, 1, 0]
+  position: [0.45, 0.35, 0.45]
+  look_at: [0.0, 0.02, 0.0]
+
+capture_plan: |
+  1. 書平放在桌上，ChArUco 板平放在書旁（不要被書蓋住），兩者拍攝期間都不能移動。
+  2. 對焦設定檔 object；rig 兩台相機夾角約 15°–20°，兩台都要看得到書。
+  3. 繞書 3 圈：rig 下俯約 0°、30°、60°，距離約 0.5–0.8 m，每 10–15° 停下拍一組。
+  4. 約 80–120 組（160–240 張），10–15 分鐘；每組都要同時拍到書，板子盡量也入鏡。

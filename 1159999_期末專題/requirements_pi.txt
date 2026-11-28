@@ -1,0 +1,8 @@
+# 拍攝端（Raspberry Pi 5）套件：pip install -r requirements_pi.txt
+# 系統套件另需：sudo apt install v4l-utils tmux（見 PATH.md）
+numpy
+opencv-python-headless>=4.8   # 4.7 起 cv2.aruco 在主套件中（標定模式顯示角點數）；Pi 不需要 GUI
+pyyaml
+# 選用：實體按鈕 / 蜂鳴器（config/pi.yaml gpio）
+# gpiozero
+# lgpio

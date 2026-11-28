@@ -1,0 +1,5 @@
+# 相機內參與 rig 外參（S3 由 src/calib.py 自動寫入，請勿手動修改數值）
+# 每個對焦設定檔（object / room / outdoor）各一組；尚未標定的設定檔，S8 會讓 COLMAP 自行估計內參。
+# 外參定義：P_cam_i = R_i · P_rig + t_i（rig 座標 = cam0 相機座標），t 單位：公尺。
+
+profiles: {}

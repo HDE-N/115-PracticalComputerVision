@@ -1,0 +1,13 @@
+# 運算端（Linux 伺服器）套件：pip install -r requirements.txt
+# PyTorch、gsplat、COLMAP 需另外安裝（版本與 CUDA 相關），步驟見 PATH.md。
+#
+# OpenCV：需要 cv2.aruco 新 API（>= 4.8）且不可使用 5.x；與 1151125 標定程式一致使用 contrib 版。
+# 伺服器沒有螢幕、也沒有 sudo 可安裝 libGL，因此用 headless 版。
+# 不要同時安裝其他 opencv 套件（都提供 cv2，會互相覆蓋）；gsplat 的 examples/requirements.txt
+# 會裝 opencv-python，裝完後依 PATH.md B6 移除並重裝本行。
+opencv-contrib-python-headless>=4.10.0.84,<5
+numpy
+scipy
+pyyaml
+matplotlib        # 1151125 標定程式的相機位置圖
+open3d            # 選用：點雲 / 高斯中心的互動檢視
