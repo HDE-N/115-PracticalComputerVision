@@ -25,10 +25,10 @@ controls:
   focus_automatic_continuous: 0        # 關閉自動對焦
   white_balance_automatic: 0           # 關閉自動白平衡
   auto_exposure: 1                     # 1 = 手動曝光
-  exposure_time_absolute: 65530        # !! 待實測：本相機回報範圍異常，疑似 16 位元表示的負數（65530 = -6）
-                                       #    用 S1/set_controls.py --sweep exposure_time_absolute 找合適值
+  exposure_time_absolute: 256          # 本相機回報的範圍 min=65522 > max=256，Linux 會把任何寫入值夾到 256（2026-11-28 實測），
+                                       # 手動曝光實際上固定在 256；亮度改用 gain 調整（S1/set_controls.py --sweep gain）
   white_balance_temperature: 3         # 只有 1–5 五段
-  gain: 0
+  gain: 0                              # 待實測：依 gain 掃描結果選亮度約 100–150 的值
   sharpness: 0                         # 不銳化，避免光暈影響 3DGS
   backlight_compensation: 0
 

@@ -35,13 +35,13 @@
 ### 拍攝端
 | 項目 | 事實 |
 |------|------|
-| 樹莓派 | Raspberry Pi 5 Model B Rev 1.1（2 GB），原廠散熱器 + 風扇，Raspberry Pi OS 64-bit（有 conda base 環境），主機名稱 `immich-vv202`（只是名字，沒有跑 Immich） |
+| 樹莓派 | Raspberry Pi 5 Model B Rev 1.1（2 GB），原廠散熱器 + 風扇，Raspberry Pi OS 64-bit（**Debian 13 trixie**，aarch64，有 conda base 環境），主機名稱 `immich-vv202`（只是名字，沒有跑 Immich） |
 | 相機 | 與 1151125 同一批通用 USB 相機（USB ID `5843:e603`，名稱「WebCamera」，內建麥克風），共 4 台，**預設用 2 台**；USB 2.0 裝置 |
 | 相機格式 | MJPG：2048×1536、1920×1080、1280×720…皆 30 fps；YUYV 最高 1280×720 @ 10 fps。**採用 MJPG，直接保存原始 JPEG bytes** |
 | 相機接法 | cam0（下）= `/dev/v4l/by-path/platform-xhci-hcd.0-usb-0:2:1.0-video-index0`（Bus 001）；cam1（上）= `/dev/v4l/by-path/platform-xhci-hcd.1-usb-0:2:1.0-video-index0`（Bus 003）。**一律用 by-path 開相機**，`/dev/videoN` 會互換 |
-| V4L2 控制項 | `focus_automatic_continuous` / `focus_absolute`（0–1023，**僅能軟體對焦**）；`auto_exposure`（預設 0 = 自動，1 = 手動）/ `exposure_time_absolute`（**回報範圍異常 min=65522 max=256**，疑似 DSHOW 的負數以 16 位元無號表示，65529 = −7，待實測）；`white_balance_automatic` / `white_balance_temperature`（**只有 1–5 五段**）；`gain` 0–255；`power_line_frequency` 預設 50 Hz → **台灣要設 2（60 Hz）**；`sharpness` 維持 0 |
+| V4L2 控制項 | `focus_automatic_continuous` / `focus_absolute`（0–1023，**僅能軟體對焦**）；`auto_exposure`（預設 0 = 自動，1 = 手動）/ `exposure_time_absolute`（**回報範圍異常 min=65522 max=256**，**實測（2026-11-28）：min > max，驅動把任何寫入值夾到 256，手動曝光固定在 256，亮度改用 `gain` 調整**）；`white_balance_automatic` / `white_balance_temperature`（**只有 1–5 五段**）；`gain` 0–255；`power_line_frequency` 預設 50 Hz → **台灣要設 2（60 Hz）**；`sharpness` 維持 0 |
 | SSD | SanDisk Extreme Portable 2 TB（USB 3.2 Gen 2，`uas`，Bus 002 5000M），已格式化為 **ext4**，以 UUID 掛載在 **`/mnt/ssd`**；影像根目錄 `/mnt/ssd/3dgs_capture/` |
-| 供電 | Aukey PB-Y37（20,000 mAh / 74 Wh，5V 最高 3A），**不使用 UPS HAT**。Pi 5 需在 `/boot/firmware/config.txt` 加 `usb_max_current_enable=1`（使用者尚未確認已設定） |
+| 供電 | Aukey PB-Y37（20,000 mAh / 74 Wh，5V 最高 3A），**不使用 UPS HAT**。`/boot/firmware/config.txt` 已加 `usb_max_current_enable=1`（2026-11-28 確認生效，`get_throttled=0x0`） |
 | 操作方式 | 筆電在旁邊，以 SSH + 瀏覽器（`http://<Pi IP>:8000`）操作；不使用 VNC |
 
 ### 運算端
@@ -252,7 +252,6 @@ Pi：S1 檢查 → S2 供電燒機 → S3 標定照片 / S5 場景拍攝
 - `set_controls.py --profile object` 的讀回結果；對焦掃描與曝光掃描的結果與選定值（寫回 `config/pi.yaml`）。
 - `check_cameras.py --seconds 600` 的摘要（以及選用的 4 台測試）。
 - 伺服器 `check_env.py` 的輸出。
-- `usb_max_current_enable=1` 是否已設定。
 
 之後階段需要的資訊：
 - 解析度選擇（2048×1536 vs 1280×720）：P0 兩種各拍一次比較後決定，決定後不再更改。

@@ -46,20 +46,20 @@ python S1/set_controls.py --profile object --sweep focus_absolute --values 200:4
 ```
 把最清晰的值填入 `config/pi.yaml` 的 `profiles.object.focus_absolute`。
 
-### 4. Pi：找曝光值
-這台相機回報的曝光範圍不正常（min=65522、max=256），先確認數值的意義：
+### 4. Pi：調整亮度（曝光固定，改用 gain）
+實測結果（2026-11-28）：這台相機回報的曝光範圍 min=65522 大於 max=256，Linux 驅動會把**任何寫入值都夾到 256**，
+因此手動曝光實際上固定在 256（`config/pi.yaml` 已改為 256）。亮度改用 `gain` 調整：
 ```bash
-python S1/set_controls.py --profile object --sweep exposure_time_absolute \
-  --values 65522,65524,65526,65528,65530,65532,65534,10,50,100,200
+python S1/set_controls.py --profile object --sweep gain --values 0,16,32,48,64,96,128
 ```
-看每個值的「亮度」與「讀回」：
-- 亮度隨數值單調變化的那組就是有效範圍。
-- 選**亮度約 100–150、過曝 < 1%** 的值，填入 `config/pi.yaml` 的 `controls.exposure_time_absolute`。
-- 曝光時間越長越容易手震模糊。亮度不夠時，優先把室內燈開亮，其次才是調高 `gain`。
+看每個值的「亮度」：
+- **亮度會隨 gain 變化** → 手動曝光確實生效（若亮度幾乎不變，代表相機仍在自動曝光，請回報）。
+- 選**亮度約 100–150、過曝 < 1%** 中最小的 gain（gain 越大雜訊越多），填入 `config/pi.yaml` 的 `controls.gain`。
+- gain 0 就已過亮或 gain 很大仍太暗時，先調整室內照明（開燈 / 拉窗簾），再重新掃描。
 
 掃描的照片存在 `/mnt/ssd/3dgs_capture/_tests/sweep_*/`，可以傳到筆電檢查清晰度。
 
-### 5. Pi：重新套用並確認
+### 5. Pi：重新套用並確認（先在 Pi 上把步驟 3、4 選定的值填入 `config/pi.yaml`）
 ```bash
 python S1/set_controls.py --profile object          # 全部 OK
 ```
